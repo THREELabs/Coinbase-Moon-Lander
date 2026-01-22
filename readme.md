@@ -65,7 +65,7 @@ streamlit run coinbase-moon-lander.py
 
 ---
 
-## 🛸 Usage
+## Usage
 
 1.  **Launch the App**: Open the local URL provided by Streamlit (usually `http://localhost:8501`).
 2.  **View Your Fleet**: The dashboard will automatically scan for `OPEN` orders on your Coinbase account.
