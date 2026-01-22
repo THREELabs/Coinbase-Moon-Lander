@@ -49,6 +49,21 @@ def get_api_client():
             
     api_key = os.getenv('CB_API_KEY')
     api_secret = os.getenv('CB_API_SECRET')
+
+    # 1.5. Try st.secrets (Streamlit Cloud)
+    if not api_key or not api_secret:
+        try:
+            # Check if secrets are available (they might be under a 'coinbase' section or top level)
+            # User said "set my api keys in the safe area", usually maps to top level or custom section.
+            # We'll assume top level names as per standard or 'CB_API_KEY' keys.
+            if "CB_API_KEY" in st.secrets:
+                api_key = st.secrets["CB_API_KEY"]
+            if "CB_API_SECRET" in st.secrets:
+                api_secret = st.secrets["CB_API_SECRET"]
+        except FileNotFoundError:
+            pass # No secrets file found
+        except Exception:
+            pass
     
     # 2. Main Input fallback (No Sidebar)
     if not api_key or not api_secret:
