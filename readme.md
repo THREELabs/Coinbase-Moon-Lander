@@ -1,4 +1,4 @@
-# 🚀 Coinbase Moon Lander
+#  Coinbase Moon Lander
 
 **Space-Age Visualization for your Coinbase Advanced Trade Orders.**
 
@@ -6,20 +6,20 @@ Turn your boring order book into a high-stakes space mission. Moon Lander visual
 
 ---
 
-## 🌟 Features
+##  Features
 
 ### 🔭 Mission Control Center
 - **Live Telemetry**: Real-time price updates fetched directly from Coinbase.
 - **Visual Missions**: Every active order is a unique ship in the fleet.
 - **Flight Deck**: A specialized HUD (Heads-Up Display) with animated starfields and retro sci-fi aesthetics.
 
-### 🚀 Dynamic Flight Status
+###  Dynamic Flight Status
 *   **STAGING (Buy Orders)**: Limit Buy orders are visualized as rockets on the launchpad, waiting for the price to drop to your entry target ("Liftoff").
 *   **IN FLIGHT (Sell Orders)**: Active positions (Limit Sells or Brackets) are rockets soaring through space.
     *   **Forward Thrust**: Ships fly towards the right (Take Profit) when the price is moving in your favor.
     *   **Retreat**: Ships flip and retreat left (towards Stop Loss) if the market turns against you.
 
-### 💓 Health & HUD System
+###  Health & HUD System
 - **Mission Health**: A calculated 0-100% score based on the current price relative to your Stop Loss and Take Profit.
 - **Color-Coded Status**:
     - **STABLE**: Cruising altitude (Blue/Cyan).
@@ -28,7 +28,7 @@ Turn your boring order book into a high-stakes space mission. Moon Lander visual
 
 ---
 
-## 🛠️ Installation & Setup
+##  Installation & Setup
 
 ### Prerequisites
 - Python 3.9+
