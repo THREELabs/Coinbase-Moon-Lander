@@ -1,4 +1,6 @@
-#  Coinbase Moon Lander
+# Coinbase Moon Lander
+
+![Coinbase Moon Lander](assets/eliana-2.jpg)
 
 **Visualization for your Coinbase Advanced Trade Orders.**
 
