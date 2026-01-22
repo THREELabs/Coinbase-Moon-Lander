@@ -840,10 +840,10 @@ else:
             
             retreat_class = "retreat" if is_retreating else ""
             
-            # Visual Clamp: Prevent ship from being clipped at 0% or 100%
-            # The ship is centered on 'left', so 0% clips half the ship.
-            # We map 0-100 logic scale to roughly 4-96 visual scale.
-            visual_pos = max(4, min(96, health))
+            # Visual Clamp: Use CSS calc to keep rocket fully inside container
+            # 0% health -> Center at 30px (Left Edge)
+            # 100% health -> Center at 100% - 30px (Right Edge)
+            # Formula: 30px + (100% - 60px) * (health / 100)
             
             # Dedent the HTML content to prevent it from being rendered as a code block
             # We use distinct strings concatenated to avoid indentation issues entirely
@@ -859,7 +859,7 @@ STATUS: {status_text}
 <div class="starfield"></div>
 <div class="marker sl"><span class="marker-label" style="color: #ff4b4b;">SL {sl_disp}</span></div>
 <div class="marker tp"><span class="marker-label" style="color: #00ff00;">TP {tp_disp}</span></div>
-<div class="ship-container {retreat_class} {staging_class}" style="left: {visual_pos}%;">
+<div class="ship-container {retreat_class} {staging_class}" style="left: calc(30px + (100% - 60px) * ({health} / 100));">
 <div class="ship-svg">{ship_icon}</div>
 <div class="engine-plume" style="{plume_style}"></div>
 <div class="price-tag">{price_disp}</div>
