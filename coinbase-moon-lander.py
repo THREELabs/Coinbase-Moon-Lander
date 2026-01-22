@@ -469,7 +469,7 @@ def get_mission_history(client, limit=10):
 
 # --- 5. Main UI & Visualization ---
 
-st.title("🚀 Coinbase Moon Lander")
+st.title("Coinbase Moon Lander")
 st.markdown("*Visualizing your trade trajectories in real-time.*")
 
 # Custom CSS for Space Theme & HUD
@@ -697,7 +697,7 @@ else:
 if not orders:
     st.info("No active moon missions initiated.")
 else:
-    st.markdown(f"### 🔭 Active Trajectories: {len(orders)}")
+    st.markdown(f"### Active Trajectories: {len(orders)}")
     
     # SVG Ship Assets
     # Normal Flight: Detailed Gold Rocket (No Launchpad)
@@ -851,7 +851,7 @@ STATUS: {status_text}
 # --- Mission History Section ---
 if client:
     st.markdown("---")
-    st.markdown("### 🏆 Mission Hall of Fame (Recent Landings)")
+    st.markdown("### Mission Hall of Fame (Recent Landings)")
     
     history_missions = get_mission_history(client, limit=5)
     
