@@ -306,7 +306,7 @@ def get_open_orders_data(client):
 def get_mission_history(client, limit=10):
     """
     Fetches recently filled SELL orders to visualize as 'Landed Missions'.
-    FILTERS: Only shows 'Success' missions (Standard Limit Sells), filters out Stop Loss / Stop Limit fills.
+    INCLUDES: Success (Limit Sells), Crash Landings (Stop Loss), and Aborted (Market Sells).
     """
     if not client: return []
     
@@ -331,39 +331,46 @@ def get_mission_history(client, limit=10):
 
         history = []
         for o in orders:
+            # We collect enough candidates to hopefully get 'limit' number of VALID missions
+            # But since we now accept ALL sells, this buffer is less critical but good to have.
             if len(history) >= limit: break
             
             side = getattr(o, 'side', 'N/A')
             if side != 'SELL': continue
             
-            # --- FILTER: Check Order Configuration to determine if it was SL or TP ---
+            # --- DETERMINE STATUS ---
             oconf = getattr(o, 'order_configuration', None)
-            is_success_landing = False
+            mission_status = "UNKNOWN"
             
             avg_price_str = getattr(o, 'average_filled_price', '0')
             filled_price = Decimal(avg_price_str)
             
             if oconf:
                 if hasattr(oconf, 'limit_limit_gtc') or hasattr(oconf, 'limit_limit_gtd'):
-                     is_success_landing = True
+                     # Standard Limit Sell -> Assumed Success/Take Profit
+                     mission_status = "SUCCESS"
                 elif hasattr(oconf, 'trigger_bracket_gtc'):
                      c = oconf.trigger_bracket_gtc
                      limit_price = Decimal(getattr(c, 'limit_price', '0'))
+                     # If we sold at or above limit price -> Success
                      if filled_price >= limit_price:
-                         is_success_landing = True
+                         mission_status = "SUCCESS"
                      else:
-                         is_success_landing = False
+                         # Sold below limit (Stop Price triggered) -> Crash
+                         mission_status = "CRASH LANDED"
+                elif hasattr(oconf, 'stop_limit_stop_limit_gtc') or hasattr(oconf, 'stop_limit_stop_limit_gtd'):
+                     # Stop Limit Sell -> Usually a Stop Loss -> Crash
+                     mission_status = "CRASH LANDED"
                 elif hasattr(oconf, 'market_market_iot'):
-                     is_success_landing = False 
+                     # Market Sell -> Manual Eject -> Aborted
+                     mission_status = "ABORTED"
                 else:
-                     is_success_landing = False
+                     # Fallback
+                     mission_status = "ABORTED"
             
-            if not is_success_landing:
-                continue
-            
+            # Identify Product & Metrics
             pid = getattr(o, 'product_id', 'N/A')
             size_str = getattr(o, 'filled_size', '0')
-            avg_price_str = getattr(o, 'average_filled_price', '0')
             fill_time = getattr(o, 'last_fill_time', None)
             
             size = Decimal(size_str)
@@ -379,13 +386,6 @@ def get_mission_history(client, limit=10):
             profit_str = "N/A"
             
             if pid in buy_orders_map:
-                # Simple Match: Find most recent BUY with similar size (+/- 1%)
-                # Or just take the most recent BUY (LIFO assumption)
-                # Since we iterate orders Newest->Oldest, the "next" buy we see in the map
-                # (which contains all buys) that is Older than this sell is likely the one.
-                # However, the map isn't time-indexed relative to this loop. 
-                # Let's iterate the pre-built map.
-                
                 potential_buys = buy_orders_map[pid]
                 matched_buy = None
                 
@@ -409,9 +409,8 @@ def get_mission_history(client, limit=10):
                              matched_buy = b
                              break
                 
-                # If no exact size match, fallback to most recent previous buy (simpler LIFO)
+                # If no exact size match, fallback to most recent previous buy
                 if not matched_buy:
-                     # Just find the first one older than sell
                      for b in potential_buys:
                          b_time_str = getattr(b, 'last_fill_time', None)
                          if not b_time_str: continue
@@ -424,13 +423,12 @@ def get_mission_history(client, limit=10):
             
                 if matched_buy:
                     buy_price = Decimal(getattr(matched_buy, 'average_filled_price', '0'))
-                    buy_size = Decimal(getattr(matched_buy, 'filled_size', '0')) # Use actual buy size for cost? 
-                    # Better: Use SELL SIZE * BUY PRICE to get cost of goods sold (COGS)
-                    # + Pro-rated fees? Let's just use the buy order's total if matched.
+                    buy_size = Decimal(getattr(matched_buy, 'filled_size', '0'))
                     buy_fees = Decimal(getattr(matched_buy, 'total_fees', '0'))
                     
-                    # Cost = Amount Spent to get these coins
-                    # If sizes match perfectly:
+                    # Cost = Amount Spent to get these coins (approximate if size mismatch)
+                    # We treat the BUY order as the cost basis source. 
+                    # If sizes differ drastically, this might be off, but usually 1:1 in this bot.
                     cost_basis = (buy_size * buy_price) + buy_fees
                     
                     # Net Profit = Proceeds - Cost
@@ -441,25 +439,33 @@ def get_mission_history(client, limit=10):
 
             
             time_disp = "N/A"
+            created_dt_local = pd.Timestamp.min.replace(tzinfo=None) # default for sorting
+
             if fill_time:
                 try:
                     dt = pd.to_datetime(fill_time)
                     if dt.tzinfo is None: dt = dt.tz_localize('UTC')
                     dt_local = dt.to_pydatetime().astimezone()
+                    created_dt_local = dt_local # For sorting
                     time_disp = dt_local.strftime('%Y-%m-%d %I:%M %p')
                 except: pass
                 
             history.append({
                 'id': getattr(o, 'order_id', ''),
                 'product': pid,
-                'proceeds': f"${sell_proceeds:,.2f}", # Was 'value' (Net Value)
+                'proceeds': f"${sell_proceeds:,.2f}", 
                 'price': f"${sell_price:,.2f}",
                 'time': time_disp,
+                'raw_time': created_dt_local, # For sorting
                 'size': f"{size:.4f}",
                 'fees': f"${sell_fees:,.2f}",
                 'profit': profit_str,
-                'raw_profit': net_profit if profit_str != "N/A" else Decimal('-999999') # for sorting checks if needed
+                'raw_profit': net_profit if profit_str != "N/A" else Decimal('-999999'),
+                'status': mission_status
             })
+            
+        # Ensure sorted by time (Newest First) just in case
+        history.sort(key=lambda x: x['raw_time'], reverse=True)
             
         return history
         
@@ -883,12 +889,32 @@ if client:
     
     if history_missions:
         for h in history_missions:
+                # determine styles based on status
+                status = h.get('status', 'UNKNOWN')
+                
+                # Defaults (Success)
+                border_color = "#ffd700"
+                text_color = "#ffd700"
+                header_text = f"CONFIRMED LANDING: {h['product']}"
+                status_text = "SUCCESS"
+                
+                if status == 'CRASH LANDED':
+                    border_color = "#ff4b4b"     # Red
+                    text_color = "#ff4b4b"
+                    header_text = f"CRASH LANDING: {h['product']}"
+                    status_text = "FAILED"
+                elif status == 'ABORTED':
+                    border_color = "#ffaa00"     # Orange
+                    text_color = "#ffaa00" 
+                    header_text = f"MISSION ABORTED: {h['product']}"
+                    status_text = "ABORTED"
+                
                 # Simplified Card for "Landed" missions
                 hist_html = f"""
-<div class="hud-container" style="border-color: #ffd700; opacity: 0.9;">
-<div class="mission-header" style="border-bottom: 1px dotted #ffd700; margin-bottom: 5px;">
-<span class="mission-title" style="color: #ffd700; font-size: 1.2em;">CONFIRMED LANDING: {h['product']}</span>
-<span class="mission-status" style="color: #ffd700; border-color: #ffd700; text-shadow: 0 0 5px #ffd700;">SUCCESS</span>
+<div class="hud-container" style="border-color: {border_color}; opacity: 0.9;">
+<div class="mission-header" style="border-bottom: 1px dotted {border_color}; margin-bottom: 5px;">
+<span class="mission-title" style="color: {text_color}; font-size: 1.2em;">{header_text}</span>
+<span class="mission-status" style="color: {text_color}; border-color: {border_color}; text-shadow: 0 0 5px {border_color};">{status_text}</span>
 </div>
 <div class="telemetry-grid" style="grid-template-columns: repeat(5, 1fr); border: none; padding-top: 5px;">
 <div class="t-module"><span class="t-label">TOUCHDOWN TIME</span><span class="t-value">{h['time']}</span></div>
@@ -901,7 +927,7 @@ if client:
 """
                 st.markdown(hist_html, unsafe_allow_html=True)
     else:
-        st.caption("No recent successful landings found in flight logs.")
+        st.caption("No recent missions found in flight logs.")
 
 # --- Auto-Refresh (Bottom of Script) ---
 if not orders:
