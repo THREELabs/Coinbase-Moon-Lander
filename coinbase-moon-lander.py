@@ -929,7 +929,7 @@ if client:
     else:
         st.caption("No recent missions found in flight logs.")
 
-# --- Auto-Refresh (Bottom of Script) ---
+# --- Auto-Refresh heres (Bottom of Script) ---
 if not orders:
      st.caption("Auto-refreshing in 30 seconds...")
 else:
