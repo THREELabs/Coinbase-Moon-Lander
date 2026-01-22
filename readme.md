@@ -2,7 +2,7 @@
 
 **Visualization for your Coinbase Advanced Trade Orders.**
 
-Turn your boring order book into a high-stakes space mission. Moon Lander visually renders your active Limit and Stop orders as rockets flying through space, providing an intuitive and exciting way to track your crypto positions in real-time.
+Turn your boring order book into a high-stakes space mission. This tool allows you to view your Coinbase buy and sell orders as an immersive visual experience. Moon Lander visually renders your active Limit and Stop orders as rockets flying through space, providing an intuitive and exciting way to track your crypto positions in real-time.
 
 ---
 
