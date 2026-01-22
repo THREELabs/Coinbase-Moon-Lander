@@ -1,6 +1,6 @@
 #  Coinbase Moon Lander
 
-**Space-Age Visualization for your Coinbase Advanced Trade Orders.**
+**Visualization for your Coinbase Advanced Trade Orders.**
 
 Turn your boring order book into a high-stakes space mission. Moon Lander visually renders your active Limit and Stop orders as rockets flying through space, providing an intuitive and exciting way to track your crypto positions in real-time.
 
