@@ -796,7 +796,33 @@ else:
                  
             else:
                  # SELL (Legacy Logic)
-                 is_retreating = health < 50
+                 # Determine direction based on price history
+                 trend_direction = 'RIGHT' # Default
+                 
+                 # Initialize price history if needed
+                 if 'price_history' not in st.session_state:
+                     st.session_state.price_history = {}
+                 
+                 prev_data = st.session_state.price_history.get(pid, {})
+                 prev_price = prev_data.get('price', 0)
+                 prev_trend = prev_data.get('trend', 'RIGHT')
+                 
+                 current_price = o['current_price']
+                 
+                 if current_price > prev_price:
+                     trend_direction = 'RIGHT'
+                 elif current_price < prev_price:
+                     trend_direction = 'LEFT'
+                 else:
+                     trend_direction = prev_trend # Keep previous direction if price is unchanged
+                 
+                 # Update history
+                 st.session_state.price_history[pid] = {
+                     'price': current_price,
+                     'trend': trend_direction
+                 }
+                 
+                 is_retreating = trend_direction == 'LEFT'
                  status_color = '#00f3ff' if health > 50 else '#ffaa00' if health > 20 else '#ff4b4b'
                  status_text = 'STABLE' if health > 50 else 'UNSTABLE' if health > 20 else 'CRITICAL'
                  ship_icon = svg_ship_alert if is_retreating else svg_ship_normal
