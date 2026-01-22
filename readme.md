@@ -8,7 +8,7 @@ Turn your boring order book into a high-stakes space mission. Moon Lander visual
 
 ##  Features
 
-### 🔭 Mission Control Center
+###  Mission Control Center
 - **Live Telemetry**: Real-time price updates fetched directly from Coinbase.
 - **Visual Missions**: Every active order is a unique ship in the fleet.
 - **Flight Deck**: A specialized HUD (Heads-Up Display) with animated starfields and retro sci-fi aesthetics.
