@@ -944,7 +944,7 @@ if client:
     st.markdown("---")
     st.markdown("### Mission Hall of Fame (Recent Landings)")
     
-    history_missions = get_mission_history(client, limit=5)
+    history_missions = get_mission_history(client, limit=20)
     
     if history_missions:
         for h in history_missions:
