@@ -569,7 +569,7 @@ st.markdown("""
     padding: 15px;
     margin-bottom: 25px;
     position: relative;
-    overflow: hidden;
+    overflow: visible; /* Changed from hidden to visible to prevent clipping overlays */
     box-shadow: 0 0 15px rgba(0,0,0,0.5);
 }
 .hud-container::before {
@@ -640,9 +640,47 @@ st.markdown("""
     background: #000;
     border: 1px solid #333;
     margin: 15px 0;
-    overflow: hidden;
+    overflow: visible; /* Changed from hidden to visible */
+    height: 300px; /* Increased to 300px to ensure absolutely no clipping */
     perspective: 1000px;
 }
+.price-tag {
+    position: absolute;
+    bottom: -20px; /* Moved up slightly */
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 1em;
+    font-weight: bold;
+    color: #fff;
+    text-shadow: 0 0 3px #000;
+    white-space: nowrap;
+    z-index: 110; /* Ensure it stays on top of overlay if they touch */
+}
+.diagnostic-overlay {
+    position: absolute;
+    bottom: -110px; /* Pushed significantly lower to clear the price tag */
+    left: 50%;
+    transform: translateX(-50%);
+    width: 160px;
+    font-size: 0.75em;
+    color: rgba(175, 200, 255, 0.9);
+    background: rgba(5, 10, 16, 0.85); /* Semi-opaque background */
+    border: 1px solid rgba(0, 243, 255, 0.2);
+    padding: 4px;
+    border-radius: 4px;
+    z-index: 100;
+    text-align: center;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+    pointer-events: none;
+}
+.diag-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 1px 4px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.diag-row:last-child { margin-bottom: 0; border-bottom: none; }
+
 .starfield {
     position: absolute;
     width: 200%;
@@ -689,6 +727,23 @@ st.markdown("""
 /* Staging specific price tag positioning to avoid overlap */
 .ship-container.staging .price-tag {
     top: -30px; 
+}
+
+/* --- Flight Animation (Bobbing) --- */
+@keyframes flight-bob {
+    0% { transform: translate(-50%, -50%) translateY(0); }
+    50% { transform: translate(-50%, -50%) translateY(-5px); } 
+    100% { transform: translate(-50%, -50%) translateY(0); }
+}
+
+.ship-container.flight-bob {
+    animation: flight-bob 3s ease-in-out infinite;
+}
+
+
+.ship-container.hover-mode .ship-svg {
+    transform: rotate(0deg); /* Point Up */
+    filter: drop-shadow(0 0 8px rgba(0, 243, 255, 0.4));
 }
 """, unsafe_allow_html=True)
 
@@ -750,9 +805,14 @@ else:
             
             # Logic
             # BUY = "Staging for Liftoff" (Orange/Yellow), Vertical Rocket on Launchpad
-            # SELL = "In Flight" (Cyan/Red), faces left if retreating (Health < 50)
+            # SELL = 
+            #   - UNKNOWN TREND -> "Hover Mode" (Vertical, Bobbing)
+            #   - UP TREND -> "In Flight" (Right)
+            #   - DOWN TREND -> "Retreating" (Left, Red)
             
             staging_class = ""
+            retreat_class = ""
+            hover_class = ""
             
             if side == 'BUY':
                  is_retreating = False 
@@ -801,9 +861,7 @@ else:
                  plume_style = "" # Handled inside SVG or disabled
                  
             else:
-                 # SELL (Legacy Logic)
-                 # Determine direction based on price history
-                 trend_direction = 'RIGHT' # Default
+                 # SELL (In Flight)
                  
                  # Initialize price history if needed
                  if 'price_history' not in st.session_state:
@@ -811,16 +869,20 @@ else:
                  
                  prev_data = st.session_state.price_history.get(pid, {})
                  prev_price = prev_data.get('price', 0)
-                 prev_trend = prev_data.get('trend', 'RIGHT')
+                 prev_trend = prev_data.get('trend', 'NEUTRAL') # Default to NEUTRAL/HOVER
                  
                  current_price = o['current_price']
                  
-                 if current_price > prev_price:
+                 # Trend Logic
+                 if prev_price == 0:
+                     # FIRST LOAD -> Force Right (Profit Direction) as per user request
+                     trend_direction = 'RIGHT'
+                 elif current_price > prev_price:
                      trend_direction = 'RIGHT'
                  elif current_price < prev_price:
                      trend_direction = 'LEFT'
                  else:
-                     trend_direction = prev_trend # Keep previous direction if price is unchanged
+                     trend_direction = prev_trend # Maintain state
                  
                  # Update history
                  st.session_state.price_history[pid] = {
@@ -828,22 +890,24 @@ else:
                      'trend': trend_direction
                  }
                  
-                 is_retreating = trend_direction == 'LEFT'
+                 # Apply Visuals based on Trend
+                 is_retreating = (trend_direction == 'LEFT')
+                 
                  status_color = '#00f3ff' if health > 50 else '#ffaa00' if health > 20 else '#ff4b4b'
                  status_text = 'STABLE' if health > 50 else 'UNSTABLE' if health > 20 else 'CRITICAL'
                  ship_icon = svg_ship_alert if is_retreating else svg_ship_normal
+                 retreat_class = "retreat" if is_retreating else ""
+                 plume_style = "" # Default engines
+
                  # Create robust single-line SVG string
                  ship_icon = "".join([line.strip() for line in ship_icon.split('\n')])
-                 
-                 # Default plume (Blue thrust)
-                 plume_style = ""
-            
-            retreat_class = "retreat" if is_retreating else ""
             
             # Visual Clamp: Use CSS calc to keep rocket fully inside container
-            # 0% health -> Center at 30px (Left Edge)
-            # 100% health -> Center at 100% - 30px (Right Edge)
-            # Formula: 30px + (100% - 60px) * (health / 100)
+            # The rocket's max dimension is 100px (when horizontal).
+            # We need the CENTER to be at least 50px from edges.
+            # 0% health -> Center at 50px
+            # 100% health -> Center at 100% - 50px
+            # Formula: 50px + (100% - 100px) * (health / 100)
             
             # Dedent the HTML content to prevent it from being rendered as a code block
             # We use distinct strings concatenated to avoid indentation issues entirely
@@ -859,15 +923,10 @@ STATUS: {status_text}
 <div class="starfield"></div>
 <div class="marker sl"><span class="marker-label" style="color: #ff4b4b;">SL {sl_disp}</span></div>
 <div class="marker tp"><span class="marker-label" style="color: #00ff00;">TP {tp_disp}</span></div>
-<div class="ship-container {retreat_class} {staging_class}" style="left: calc(30px + (100% - 60px) * ({health} / 100));">
+<div class="ship-container {retreat_class} {staging_class} flight-bob" style="left: calc(50px + (100% - 100px) * ({health} / 100));">
 <div class="ship-svg">{ship_icon}</div>
 <div class="engine-plume" style="{plume_style}"></div>
 <div class="price-tag">{price_disp}</div>
-<div class="diagnostic-overlay">
-<div class="diag-row"><span>VELOCITY:</span> <span>STABLE</span></div>
-<div class="diag-row"><span>HULL:</span> <span>{health}%</span></div>
-<div class="diag-row"><span>DISTANCE:</span> <span>{(100-health) if not is_retreating else health}m</span></div>
-</div>
 </div>
 </div>
 <div class="telemetry-grid">
@@ -929,9 +988,10 @@ if client:
     else:
         st.caption("No recent missions found in flight logs.")
 
-# --- Auto-Refresh heres (Bottom of Script) ---
+# --- Auto-Refresh Logic ---
+# Default standard refresh cycle (30s)
 if not orders:
-     st.caption("Auto-refreshing in 30 seconds...")
+     st.caption("No active missions. Auto-refreshing in 30s...")
 else:
      st.caption(f"Last Updated: {datetime.now().strftime('%H:%M:%S')} | Auto-refreshing in 30s...")
 
