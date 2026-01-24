@@ -4,6 +4,7 @@ import pandas as pd
 import time
 import os
 import logging
+import random
 from decimal import Decimal
 from datetime import datetime
 from dotenv import load_dotenv
@@ -76,16 +77,27 @@ def get_api_client():
             st.header("🔑 API Credentials")
             st.info("Environment variables not found. Please enter your Coinbase Advanced Trade API keys to continue.")
             
-            c1, c2 = st.columns(2)
-            with c1:
+            with st.form("creds_form"):
                 k = st.text_input("API Key", type="password")
-            with c2:
                 s = st.text_input("API Secret", type="password")
+                save_env = st.checkbox("Save credentials to .env (Local Only)")
                 
-            if k and s:
-                st.session_state.api_key = k
-                st.session_state.api_secret = s
-                st.rerun()
+                submitted = st.form_submit_button("Launch Mission Control")
+                
+                if submitted and k and s:
+                    if save_env:
+                        env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env')
+                        try:
+                            with open(env_path, "a") as f:
+                                f.write(f"\nCB_API_KEY={k}\nCB_API_SECRET={s}\n")
+                            st.success("Credentials saved to .env!")
+                            time.sleep(1)
+                        except Exception as e:
+                            st.error(f"Failed to save .env: {e}")
+                    
+                    st.session_state.api_key = k
+                    st.session_state.api_secret = s
+                    st.rerun()
         
             st.warning("⚠️ Waiting for API Keys...")
             st.stop()
@@ -117,6 +129,16 @@ def get_asset_price(client, asset):
         price = get_best_bid(client, f"{asset}-USDC")
     return price
 
+def get_market_depth(client, product_id):
+    """Fetches the order book (bids and asks) for a product."""
+    if not client: return None
+    try:
+        # Fetch a deeper slice to populate the sky
+        ticker = client.get_product_book(product_id=product_id, limit=50)
+        return ticker
+    except Exception:
+        return None
+
 def get_open_orders_data(client):
     """
     Scans for open orders and returns 'Moon Mission' compatible data.
@@ -135,6 +157,17 @@ def get_open_orders_data(client):
         if not orders: return []
 
         orders_data = []
+
+        # --- 1. Batch Fetch Market Depth (to avoid N+1 slow down) ---
+        # Identify unique products
+        product_ids = list(set([getattr(o, 'product_id', '') for o in orders if getattr(o, 'product_id', '')]))
+        depth_map = {}
+        
+        # We'll fetch depth for these products. 
+        # Note: In a real high-frequency app, we'd async this. Here we just do it sequentially.
+        for pid in product_ids:
+             if pid:
+                 depth_map[pid] = get_market_depth(client, pid)
 
         for o in orders:
             pid = getattr(o, 'product_id', 'N/A')
@@ -171,10 +204,6 @@ def get_open_orders_data(client):
                      limit_price = getattr(c, 'limit_price', None)
                      size_dec = Decimal(getattr(c, 'base_size', '0'))
                      if stop_price: sl_price_dec = Decimal(stop_price)
-                     # For a stop limit, the limit price is usually the execution price.
-                     # If it's a BUY stop limit, we want price to go UP to it? 
-                     # Or if it's a STOP LOSS style, we want to stay ABOVE it.
-                     # Let's assume it's a standard stop loss or breakout.
                      pass
 
             # Calculate Health Score (The "Fuel")
@@ -191,40 +220,195 @@ def get_open_orders_data(client):
                         health_score = max(0, min(100, int(pct)))
                 except: pass
             elif tp_price_dec > 0 and current_unit_price > 0:
-                 # Only TP (Limit Sell), assume we want it to go UP to TP.
-                 # Let's arbitrary set 0% as 80% of current price?
-                 # Better: show as just "In Flight"
+                 # Only TP (Limit Sell)
                      pass
             elif sl_price_dec > 0 and current_unit_price > 0:
-                 # STOP LIMIT without TP (Pure protection or entry)
-                 # We can visualize this!
-                 # If side is SELL (Stop Loss), we want to stay ABOVE SL.
-                 # If side is BUY (Breakout), we want to go UP to SL (Trigger).
-                 
+                 # STOP LIMIT without TP
                  diff = current_unit_price - sl_price_dec
                  # Arbitrary range for visualization: 10% movement
                  range_buffer = sl_price_dec * Decimal('0.1') 
                  
                  if side == 'SELL':
-                      # STOP LOSS: 0% is at SL. 100% is securely above (SL + 10%)
-                      # Actually, let's reverse semantics for "Health". 
-                      # If logic is "Health = Distance from Danger", then:
-                      # Danger = SL. Safe = Current.
                       if current_unit_price <= sl_price_dec: health_score = 0
                       else:
                           dist = current_unit_price - sl_price_dec
                           pct = (dist / range_buffer) * 50 # Scale up to 50% "safe" zone
                           health_score = 50 + min(50, int(pct))
                  else:
-                      # BUY STOP (Breakout): Target IS the SL price (Trigger).
-                      # So we WANT to go there.
-                      # 0% = Current - 10%. 100% = SL.
                       if current_unit_price >= sl_price_dec: health_score = 100
                       else:
                            dist_to_go = sl_price_dec - current_unit_price
                            # progress
                            pct = (1 - (dist_to_go / range_buffer)) * 100
                            health_score = max(0, min(99, int(pct)))
+
+            # --- 2. Process Market Depth (UFOs & Stars) ---
+            ufo_fleet = [] # Sell Orders (Resistance)
+            star_map = []  # Buy Orders (Support)
+            
+            # Helper: Filter to ensuring spacing
+            def filter_spaced_items(items, target_count=10, min_dist=3):
+                """
+                Sorts by Size (Largest first), then picks items such that 
+                they don't overlap within 'min_dist' % of each other.
+                Attempts to fill 'target_count' slots.
+                """
+                # 1. Sort by Size Descending (Show the biggest walls/support)
+                sorted_items = sorted(items, key=lambda x: x['raw_size'], reverse=True)
+                
+                kept = []
+                taken_positions = []
+                
+                for item in sorted_items:
+                    if len(kept) >= target_count: break
+                    
+                    pct = item['pct']
+                    # Check distance against all kept items
+                    is_too_close = False
+                    for p in taken_positions:
+                        if abs(p - pct) < min_dist:
+                            is_too_close = True
+                            break
+                    
+                    if not is_too_close:
+                        kept.append(item)
+                        taken_positions.append(pct)
+                
+                return kept
+
+            if pid in depth_map and depth_map[pid]:
+                book = depth_map[pid]
+                if hasattr(book, 'pricebook'):
+                    # Data Collection Phase
+                    raw_ufos = []
+                    ask_vol_accum = 0.0
+                    
+                    if hasattr(book.pricebook, 'asks'):
+                        for ask in book.pricebook.asks:
+                            try:
+                                ask_price = Decimal(str(ask.price))
+                                ask_size = Decimal(str(ask.size))
+                                raw_size_float = float(ask_size)
+                                
+                                # Accumulate TOTAL pressure (regardless of if it fits on screen)
+                                ask_vol_accum += raw_size_float
+                                
+                                # Filter for VISUAL placement (only near flight path)
+                                if ask_price > current_unit_price:
+                                    if tp_price_dec > 0 and ask_price > (tp_price_dec * Decimal('1.2')):
+                                        continue 
+                                    
+                                    pos_pct = 50 
+                                    if tp_price_dec > 0 and sl_price_dec > 0:
+                                        total_dist = tp_price_dec - sl_price_dec
+                                        if total_dist > 0:
+                                            rel_dist = ask_price - sl_price_dec
+                                            pos_pct = (rel_dist / total_dist) * 100
+                                    elif sl_price_dec > 0:
+                                         range_buffer = sl_price_dec * Decimal('0.1')
+                                         rel_dist = ask_price - sl_price_dec
+                                         pos_pct = (rel_dist / range_buffer) * 50
+                                    
+                                    if -10 <= pos_pct <= 120:
+                                        val = ask_price * ask_size
+                                        raw_ufos.append({
+                                            'price': f"${ask_price:,.2f}",
+                                            'size': f"{ask_size}",
+                                            'raw_size': raw_size_float,
+                                            'val_fmt': f"${val:,.0f}",
+                                            'pct': int(pos_pct)
+                                        })
+                            except Exception as e: pass
+
+                    raw_stars = []
+                    bid_vol_accum = 0.0
+                    
+                    if hasattr(book.pricebook, 'bids'):
+                        for bid in book.pricebook.bids:
+                            try:
+                                bid_price = Decimal(str(bid.price))
+                                bid_size = Decimal(str(bid.size))
+                                raw_size_float = float(bid_size)
+                                
+                                # Accumulate TOTAL pressure
+                                bid_vol_accum += raw_size_float
+                                
+                                # Filter for VISUAL placement
+                                if bid_price < current_unit_price:
+                                    if sl_price_dec > 0 and bid_price < (sl_price_dec * Decimal('0.8')):
+                                        continue 
+                                        
+                                    pos_pct = 50
+                                    if tp_price_dec > 0 and sl_price_dec > 0:
+                                        total_dist = tp_price_dec - sl_price_dec
+                                        if total_dist > 0:
+                                            rel_dist = bid_price - sl_price_dec
+                                            pos_pct = (rel_dist / total_dist) * 100
+                                    elif sl_price_dec > 0:
+                                         range_buffer = sl_price_dec * Decimal('0.1')
+                                         rel_dist = bid_price - sl_price_dec
+                                         pos_pct = (rel_dist / range_buffer) * 50
+
+                                    if -20 <= pos_pct <= 110:
+                                        val = bid_price * bid_size
+                                        raw_stars.append({
+                                            'price': f"${bid_price:,.2f}",
+                                            'size': f"{bid_size}",
+                                            'raw_size': raw_size_float,
+                                            'val_fmt': f"${val:,.0f}",
+                                            'pct': int(pos_pct)
+                                        })
+                            except: pass
+                    
+                    # --- Dynamic Density Logic ---
+                    # Total visual slots available (increased density)
+                    total_slots = 24 
+                    
+                    # Avoid DivideByZero
+                    total_vol = ask_vol_accum + bid_vol_accum
+                    
+                    if total_vol > 0:
+                        # Calculate proportional share
+                        ufo_share = ask_vol_accum / total_vol
+                        star_share = bid_vol_accum / total_vol
+                        
+                        # Allocate slots (Min 3 to ensure visibility of minority side)
+                        ufo_count = max(3, int(total_slots * ufo_share))
+                        star_count = max(3, int(total_slots * star_share))
+                        
+                        # Re-normalize if we exceeded total (due to min floors)
+                        if ufo_count + star_count > total_slots:
+                             # Trim major side
+                             if ufo_count > star_count: ufo_count = total_slots - star_count
+                             else: star_count = total_slots - ufo_count
+                    else:
+                        ufo_count = 10
+                        star_count = 10
+                    
+                    # --- THREAT LEVEL CALCULATION ---
+                    # Determine what counts as "Big" in this local context
+                    # strict_max ensures we don't have massive motherships for dust-only books
+                    max_ask_size = max([x['raw_size'] for x in raw_ufos]) if raw_ufos else 1.0
+                    max_bid_size = max([x['raw_size'] for x in raw_stars]) if raw_stars else 1.0
+                    global_max = max(max_ask_size, max_bid_size)
+                    
+                    # Apply Spacing Filter with Dynamic Counts
+                    ufo_fleet = filter_spaced_items(raw_ufos, target_count=ufo_count, min_dist=4)
+                    star_map = filter_spaced_items(raw_stars, target_count=star_count, min_dist=4)
+                    
+                    # Assign Levels based on relative size
+                    for u in ufo_fleet:
+                        ratio = u['raw_size'] / global_max
+                        if ratio > 0.6: u['level'] = 3
+                        elif ratio > 0.15: u['level'] = 2
+                        else: u['level'] = 1
+                        
+                    for s in star_map:
+                        ratio = s['raw_size'] / global_max
+                        if ratio > 0.6: s['level'] = 3
+                        elif ratio > 0.15: s['level'] = 2
+                        else: s['level'] = 1
+
 
             # Only add if we have some data
             if tp_price_dec > 0 or sl_price_dec > 0:
@@ -291,13 +475,16 @@ def get_open_orders_data(client):
                 'mission_value': est_value_str,
                 'upside': upside_str,
                 'age': age_disp,
-                'raw_created_time': created_dt if created_dt else pd.Timestamp.min.replace(tzinfo=None)
+                'raw_created_time': created_dt if created_dt else pd.Timestamp.min.replace(tzinfo=None),
+                'ufos': ufo_fleet, # NEW
+                'stars': star_map  # NEW
             })
 
         # Sort by raw_created_time descending (newest first)
         orders_data.sort(key=lambda x: x['raw_created_time'], reverse=True)
 
         return orders_data
+
 
     except Exception as e:
         st.error(f"Error fetching missions: {e}")
@@ -482,6 +669,32 @@ st.markdown("*Visualizing your trade trajectories in real-time.*")
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+/* --- Threat Radar Levels --- */
+.ufo.level-1 { font-size: 14px; opacity: 0.6; filter: none; }
+.ufo.level-2 { font-size: 24px; opacity: 0.9; }
+.ufo.level-3 { 
+    font-size: 42px; 
+    opacity: 1; 
+    z-index: 6;
+    filter: drop-shadow(0 0 12px rgba(255, 0, 0, 0.9)); 
+    animation: hover-mothership 6s ease-in-out infinite; 
+}
+
+.star-support.level-1 { font-size: 10px; opacity: 0.5; filter: none; }
+.star-support.level-2 { font-size: 20px; opacity: 0.8; }
+.star-support.level-3 { 
+    font-size: 36px; 
+    opacity: 1; 
+    z-index: 5;
+    filter: drop-shadow(0 0 12px rgba(255, 215, 0, 0.9)); 
+}
+
+@keyframes hover-mothership {
+    0% { transform: translateY(0) rotate(0deg); }
+    50% { transform: translateY(-4px) rotate(-2deg); }
+    100% { transform: translateY(0) rotate(0deg); }
+}
 
 /* --- HUD Animations --- */
 @keyframes scanline {
@@ -745,6 +958,36 @@ st.markdown("""
     transform: rotate(0deg); /* Point Up */
     filter: drop-shadow(0 0 8px rgba(0, 243, 255, 0.4));
 }
+
+/* --- UFO (Resistance) --- */
+@keyframes hover-ufo {
+    0% { transform: translateY(0) rotate(5deg); }
+    50% { transform: translateY(-10px) rotate(-5deg); }
+    100% { transform: translateY(0) rotate(5deg); }
+}
+.ufo {
+    position: absolute;
+    top: 30%; /* Default, will vary slightly randomly if desired */
+    font-size: 24px;
+    animation: hover-ufo 2s ease-in-out infinite;
+    z-index: 5;
+    filter: drop-shadow(0 0 5px rgba(255, 0, 0, 0.5));
+    transition: left 0.5s ease;
+}
+
+/* --- STAR (Support) --- */
+@keyframes twinkle {
+    0%, 100% { opacity: 1; transform: scale(1); filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.8)); }
+    50% { opacity: 0.8; transform: scale(1.2); filter: drop-shadow(0 0 15px rgba(255, 215, 0, 1)); }
+}
+.star-support {
+    position: absolute;
+    top: 60%;
+    font-size: 20px;
+    animation: twinkle 2s ease-in-out infinite alternate;
+    z-index: 4;
+    transition: left 0.5s ease;
+}
 """, unsafe_allow_html=True)
 
 # Main Execution Logic
@@ -798,6 +1041,84 @@ else:
             price_disp = f"${o['current_price']:,.2f}"
             tp_disp = o['tp_price']
             sl_disp = o['sl_price']
+            
+            # --- Generate UFO & Star HTML ---
+            ufo_html = ""
+            star_html = ""
+            
+            # Track placed items to avoid collisions per mission
+            # Format: {'x': int, 'y': int}
+            placed_items = []
+            
+            def get_game_coords_safe(seed_val, min_x, max_x, placed_list):
+                rng = random.Random(str(seed_val))
+                
+                # Try multiple times to find a free spot
+                best_x, best_y = 0, 0
+                
+                for attempt in range(20):
+                    # 1. Generate Candidate
+                    if min_x >= max_x: x = min_x
+                    else: x = rng.randint(int(min_x), int(max_x))
+                    
+                    y = rng.randint(10, 80)
+                    
+                    # 2. Adjust for Rocket Lane 
+                    if 45 < y < 55:
+                        if y % 2 == 0: y -= 15
+                        else: y += 15
+                        
+                    # 3. Collision Check
+                    collision = False
+                    for p in placed_list:
+                        # Simple Euclidean check (approx 5% radius safe zone)
+                        dist = ((p['x'] - x)**2 + (p['y'] - y)**2)**0.5
+                        if dist < 5.0: # 5% overlap distance
+                            collision = True
+                            break
+                    
+                    if not collision:
+                        # Found a good spot!
+                        return x, y
+                    
+                    # Store as fallback if we fail all attempts (better to slightly overlap than not show)
+                    if attempt == 0: best_x, best_y = x, y
+                
+                # If we exhausted retries, slightly jitter the fallback to avoid perfect stack
+                return best_x + rng.randint(-2, 2), best_y + rng.randint(-2, 2)
+
+            # Rocket Position = health
+            rocket_pos = int(health)
+            
+            # UFO Zone: 0 to Rocket-10
+            ufo_max_x = max(5, rocket_pos - 10)
+            
+            # Star Zone: Rocket+10 to 100
+            star_min_x = min(95, rocket_pos + 10)
+            
+            if 'ufos' in o:
+                for u in o['ufos']:
+                    x, y = get_game_coords_safe(u['price'], 2, ufo_max_x, placed_items)
+                    placed_items.append({'x': x, 'y': y})
+                    
+                    lvl = u.get('level', 2)
+                    icon = '🛸'
+                    if lvl == 3: icon = '👾' # Mothership
+                    if lvl == 1: icon = '🛸' # Scout (Same icon, smaller via CSS)
+                    
+                    ufo_html += f'<div class="ufo level-{lvl}" style="left: {x}%; top: {y}%;" title="Sell Wall: {u["price"]} (Vol: {u["val_fmt"]})" data-price="{u["price"]}">{icon}</div>'
+            
+            if 'stars' in o:
+                for s in o['stars']:
+                    x, y = get_game_coords_safe(s['price'], star_min_x, 98, placed_items)
+                    placed_items.append({'x': x, 'y': y})
+                    
+                    lvl = s.get('level', 2)
+                    icon = '⭐'
+                    if lvl == 3: icon = '🪐' # Planet/Moon
+                    if lvl == 1: icon = '✨' # Small sparkle
+                    
+                    star_html += f'<div class="star-support level-{lvl}" style="left: {x}%; top: {y}%;" title="Buy Support: {s["price"]} (Vol: {s["val_fmt"]})" data-price="{s["price"]}">{icon}</div>'
             val_disp = o.get('mission_value', 'N/A')
             upside_disp = o.get('upside', 'N/A')
             age_disp = o.get('age', 'N/A')
@@ -921,6 +1242,8 @@ STATUS: {status_text}
 </div>
 <div class="flight-deck">
 <div class="starfield"></div>
+{ufo_html}
+{star_html}
 <div class="marker sl"><span class="marker-label" style="color: #ff4b4b;">SL {sl_disp}</span></div>
 <div class="marker tp"><span class="marker-label" style="color: #00ff00;">TP {tp_disp}</span></div>
 <div class="ship-container {retreat_class} {staging_class} flight-bob" style="left: calc(50px + (100% - 100px) * ({health} / 100));">
