@@ -80,12 +80,24 @@ def get_api_client():
             with st.form("creds_form"):
                 k = st.text_input("API Key", type="password")
                 s = st.text_input("API Secret", type="password")
-                save_env = st.checkbox("Save credentials to .env (Local Only)")
+                
+                is_cloud = bool(
+                    os.getenv("STREAMLIT_SHARING_HOST")
+                    or os.getenv("IS_STREAMLIT_CLOUD")
+                    or os.path.exists("/mount/src")
+                    or os.getenv("SPACE_ID")
+                )
+                
+                if not is_cloud:
+                    save_env = st.checkbox("Save credentials to .env (Local Only)")
+                else:
+                    save_env = False
+                    st.caption("🔒 Running in a hosted cloud environment: saving credentials to disk is disabled.")
                 
                 submitted = st.form_submit_button("Launch Mission Control")
                 
                 if submitted and k and s:
-                    if save_env:
+                    if save_env and not is_cloud:
                         env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env')
                         try:
                             with open(env_path, "a") as f:

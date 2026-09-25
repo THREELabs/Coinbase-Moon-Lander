@@ -60,6 +60,10 @@ CB_API_KEY = "your_api_key_here"
 CB_API_SECRET = "your_api_secret_here"
 ```
 
+> ⚠️ **Important Security Note:**
+> Credentials in `st.secrets` are shared across all sessions on the deployment. **Keep your Streamlit Cloud app set to "Private" / restricted viewers** to prevent unauthorized access to your account's order and trade history.
+
+
 ### 3. Launch Mission Control
 ```bash
 streamlit run coinbase-moon-lander.py
