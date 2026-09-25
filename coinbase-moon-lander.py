@@ -12,8 +12,8 @@ import textwrap
 # --- 1. Configuration & Setup ---
 
 st.set_page_config(
-    page_title="Coinbase Market Kombat", 
-    page_icon="🥊", 
+    page_title="Coinbase Visualizer",
+    page_icon="🚀",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -22,7 +22,7 @@ st.set_page_config(
 logging.basicConfig(level=logging.CRITICAL)
 try:
     logging.getLogger('coinbase.RESTClient').setLevel(logging.CRITICAL)
-except:
+except Exception:
     pass
 
 # Try to import Coinbase SDK
@@ -33,10 +33,22 @@ try:
 except ImportError:
     pass
 
-# --- 2. Sidebar Controls & Mode Selection ---
+# --- 2. Sidebar Controls & Theme Selection ---
 
-st.sidebar.markdown("## 🥊 MARKET KOMBAT")
-st.sidebar.caption("Retro Arcade Order Book Combat Engine")
+theme_choice = st.sidebar.radio(
+    "🎨 Visualizer Theme",
+    ["🚀 Moon Lander (Classic)", "🥊 Market Kombat (Arcade)"],
+    index=0
+)
+
+is_kombat = "Market Kombat" in theme_choice
+
+if is_kombat:
+    st.sidebar.markdown("## 🥊 MARKET KOMBAT")
+    st.sidebar.caption("Retro Arcade Order Book Combat Engine")
+else:
+    st.sidebar.markdown("## 🚀 MOON LANDER")
+    st.sidebar.caption("Real-Time Deep Space Trajectory Radar")
 
 # Auto-detect if credentials exist in env
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -49,26 +61,35 @@ for path in [os.path.join(script_dir, '.env'),
 
 env_has_keys = bool(os.getenv('CB_API_KEY') and os.getenv('CB_API_SECRET'))
 
-# Toggle for Demo Arena
 default_demo = not env_has_keys and ('api_key' not in st.session_state)
-demo_mode = st.sidebar.checkbox("🕹️ Arcade Demo Mode", value=st.session_state.get('demo_mode', default_demo))
+demo_mode = st.sidebar.checkbox("🕹️ Demo Simulation Mode", value=st.session_state.get('demo_mode', default_demo))
 st.session_state.demo_mode = demo_mode
 
 auto_refresh = st.sidebar.checkbox("⚡ Auto-refresh (30s)", value=True)
-sound_fx_hint = st.sidebar.checkbox("🔊 Retro FX Vibes", value=True)
 
-if st.sidebar.button("🔄 Trigger Next Tick"):
-    st.rerun()
-
-st.sidebar.markdown("---")
-st.sidebar.markdown("""
+if is_kombat:
+    sound_fx_hint = st.sidebar.checkbox("🔊 Retro FX Vibes", value=True)
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("""
 **Combat Rules**:
 * **The Bull [Long]**: Your active trade.
-* **The Bear [Boss]**: Market resistance / Take Profit target.
+* **The Bear [Boss]**: Take Profit resistance level.
 * **Fireballs (Asks)**: Resistance walls hurled by Bear.
 * **Shields (Bids)**: Support orders defending Bull.
 * **Lifebars**: Health 100% = TP strike; 0% = SL crash.
 """)
+else:
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("""
+**Flight Rules**:
+* **Rocket**: Your active trade trajectory.
+* **UFOs (Asks)**: Overhead resistance obstacles.
+* **Stars (Bids)**: Underlying support beacons.
+* **Altitude**: 100% = Moon touchdown (TP); 0% = Ground collision (SL).
+""")
+
+if st.sidebar.button("🔄 Trigger Next Tick"):
+    st.rerun()
 
 # --- 3. Auth Logic (with Demo Fallback) ---
 
@@ -94,14 +115,16 @@ def get_api_client():
             api_secret = st.session_state.api_secret
         
         if not api_key:
-            st.header("🥊 WELCOME TO MARKET KOMBAT")
-            st.info("Choose your arena entry: Enter Coinbase API Keys or jump into the **Arcade Demo Arena**.")
+            portal_title = "🥊 WELCOME TO MARKET KOMBAT" if is_kombat else "🚀 COINBASE MOON LANDER"
+            st.header(portal_title)
+            st.info("Choose your entry mode: Enter Coinbase API Keys or jump into the **Demo Simulation**.")
             
             col_live, col_demo = st.columns([1, 1])
             with col_demo:
                 st.subheader("🕹️ Quick Preview")
-                st.write("Instant access to simulated live bouts, projectiles, and K.O. finishes without needing API keys.")
-                if st.button("Enter Arcade Demo Arena", type="primary", use_container_width=True):
+                st.write("Instant access to simulated live orders, market depth obstacles, and metrics without needing API keys.")
+                btn_label = "Enter Arcade Demo Arena" if is_kombat else "Launch Demo Flight Deck"
+                if st.button(btn_label, type="primary", use_container_width=True):
                     st.session_state.demo_mode = True
                     st.rerun()
 
@@ -119,7 +142,8 @@ def get_api_client():
                     )
                     
                     save_env = st.checkbox("Save credentials to .env (Local Only)") if not is_cloud else False
-                    submitted = st.form_submit_button("Engage Live Arena", use_container_width=True)
+                    submit_label = "Engage Live Arena" if is_kombat else "Launch Mission Control"
+                    submitted = st.form_submit_button(submit_label, use_container_width=True)
                     
                     if submitted and k and s:
                         if save_env and not is_cloud:
@@ -145,13 +169,13 @@ def get_api_client():
 
     return RESTClient(api_key=api_key, api_secret=api_secret)
 
-# --- 4. Live Backend Logic ---
+# --- 4. Live Backend Logic (Shared by both themes) ---
 
 def get_best_bid(client, product_id):
     if not client: return None
     try:
         ticker = client.get_product_book(product_id=product_id, limit=1)
-        if ticker and hasattr(ticker, 'pricebook') and hasattr(ticker.pricebook, 'bids') and len(ticker.pricebook.bids) > 0:
+        if ticker and hasattr(ticker, 'pricebook') and hasattr(ticker.pricebook, 'bids') and ticker.pricebook.bids:
              return Decimal(str(ticker.pricebook.bids[0].price))
     except Exception:
         pass
@@ -193,64 +217,57 @@ def get_open_orders_data(client):
 
         orders_data = []
         product_ids = list(set([getattr(o, 'product_id', '') for o in orders if getattr(o, 'product_id', '')]))
-        depth_map = {pid: get_market_depth(client, pid) for pid in product_ids if pid}
+        depth_map = {}
+        for pid in product_ids:
+            depth_map[pid] = get_market_depth(client, pid)
 
         for o in orders:
             pid = getattr(o, 'product_id', 'N/A')
             side = getattr(o, 'side', 'N/A')
             oconf = getattr(o, 'order_configuration', None)
-            
+
             tp_price_dec = Decimal('0')
             sl_price_dec = Decimal('0')
             size_dec = Decimal('0')
             current_unit_price = get_asset_price(client, pid.split('-')[0]) or Decimal('0')
-            
+
             if oconf:
                 if hasattr(oconf, 'limit_limit_gtc'):
                     c = oconf.limit_limit_gtc
                     tp_price_dec = Decimal(getattr(c, 'limit_price', '0'))
                     size_dec = Decimal(getattr(c, 'base_size', '0'))
-                    sl_price_dec = get_asset_price(client, pid.split('-')[0]) or Decimal('0') 
+                    sl_price_dec = get_asset_price(client, pid.split('-')[0]) or Decimal('0')
                 elif hasattr(oconf, 'trigger_bracket_gtc'):
-                     c = oconf.trigger_bracket_gtc
-                     limit_price = getattr(c, 'limit_price', None)
-                     stop_price = getattr(c, 'stop_trigger_price', None)
-                     size_dec = Decimal(getattr(c, 'base_size', '0'))
-                     if limit_price: tp_price_dec = Decimal(limit_price)
-                     if stop_price: sl_price_dec = Decimal(stop_price)
+                    c = oconf.trigger_bracket_gtc
+                    lp = getattr(c, 'limit_price', None)
+                    sp = getattr(c, 'stop_trigger_price', None)
+                    size_dec = Decimal(getattr(c, 'base_size', '0'))
+                    if lp: tp_price_dec = Decimal(lp)
+                    if sp: sl_price_dec = Decimal(sp)
                 elif hasattr(oconf, 'stop_limit_stop_limit_gtc'):
-                     c = oconf.stop_limit_stop_limit_gtc
-                     stop_price = getattr(c, 'stop_price', None)
-                     size_dec = Decimal(getattr(c, 'base_size', '0'))
-                     if stop_price: sl_price_dec = Decimal(stop_price)
+                    c = oconf.stop_limit_stop_limit_gtc
+                    sp = getattr(c, 'stop_price', None)
+                    size_dec = Decimal(getattr(c, 'base_size', '0'))
+                    if sp: sl_price_dec = Decimal(sp)
 
             health_score = 50
-            if tp_price_dec > 0 and sl_price_dec > 0 and current_unit_price > 0:
-                try:
-                    total_range = tp_price_dec - sl_price_dec
-                    if total_range != 0:
-                        progress = current_unit_price - sl_price_dec
-                        pct = (progress / total_range) * 100
-                        health_score = max(0, min(100, int(pct)))
-                except: pass
-            elif sl_price_dec > 0 and current_unit_price > 0:
-                diff = current_unit_price - sl_price_dec
-                range_buffer = sl_price_dec * Decimal('0.1') 
-                if side == 'SELL':
-                    if current_unit_price <= sl_price_dec: health_score = 0
-                    else:
-                        dist = current_unit_price - sl_price_dec
-                        pct = (dist / range_buffer) * 50
-                        health_score = 50 + min(50, int(pct))
-                else:
-                    if current_unit_price >= sl_price_dec: health_score = 100
-                    else:
-                        dist_to_go = sl_price_dec - current_unit_price
-                        pct = (1 - (dist_to_go / range_buffer)) * 100
-                        health_score = max(0, min(99, int(pct)))
+            if current_unit_price > 0:
+                if tp_price_dec > 0 and sl_price_dec > 0 and tp_price_dec != sl_price_dec:
+                    pct = ((current_unit_price - sl_price_dec) / (tp_price_dec - sl_price_dec)) * 100
+                    health_score = max(0, min(100, int(pct)))
+                elif tp_price_dec > 0 and current_unit_price <= tp_price_dec:
+                    range_buffer = tp_price_dec * Decimal('0.1')
+                    dist_to_go = tp_price_dec - current_unit_price
+                    pct = (1 - (dist_to_go / range_buffer)) * 100
+                    health_score = max(0, min(100, int(pct)))
+                elif sl_price_dec > 0 and current_unit_price >= sl_price_dec:
+                    range_buffer = sl_price_dec * Decimal('0.1')
+                    dist_to_go = sl_price_dec - current_unit_price
+                    pct = (1 - (dist_to_go / range_buffer)) * 100
+                    health_score = max(0, min(99, int(pct)))
 
-            fireballs = [] # Resistance / Asks
-            shields = []   # Support / Bids
+            fireballs = []
+            shields = []
             
             if pid in depth_map and depth_map[pid]:
                 book = depth_map[pid]
@@ -272,7 +289,7 @@ def get_open_orders_data(client):
                                         val = ask_price * ask_size
                                         raw_fireballs.append({
                                             'price': f"${ask_price:,.2f}",
-                                            'size': f"{ask_size}",
+                                            'size': f"${ask_size}",
                                             'raw_size': raw_size,
                                             'val_fmt': f"${val:,.0f}",
                                             'pct': pos_pct
@@ -293,7 +310,7 @@ def get_open_orders_data(client):
                                         val = bid_price * bid_size
                                         raw_shields.append({
                                             'price': f"${bid_price:,.2f}",
-                                            'size': f"{bid_size}",
+                                            'size': f"${bid_size}",
                                             'raw_size': raw_size,
                                             'val_fmt': f"${val:,.0f}",
                                             'pct': pos_pct
@@ -341,7 +358,9 @@ def get_open_orders_data(client):
                     'age': age_disp,
                     'raw_created_time': created_dt if created_dt else pd.Timestamp.min,
                     'fireballs': fireballs,
-                    'shields': shields
+                    'shields': shields,
+                    'ufos': fireballs,
+                    'stars': shields
                 })
 
         orders_data.sort(key=lambda x: x['raw_created_time'], reverse=True)
@@ -417,7 +436,7 @@ def get_mission_history(client, limit=10):
                 'price': f"${filled_price:,.2f}",
                 'time': time_disp,
                 'raw_time': raw_time,
-                'size': f"{size:.4f}",
+                'size': f"${size:.4f}",
                 'fees': f"${sell_fees:,.2f}",
                 'profit': profit_str,
                 'raw_profit': net_profit,
@@ -429,10 +448,9 @@ def get_mission_history(client, limit=10):
     except Exception:
         return []
 
-# --- 5. Arcade Demo Simulation Generator ---
+# --- 5. Demo Simulation Generator ---
 
 def get_demo_orders():
-    """Generates rich, live-feeling arcade battles with simulated ticks."""
     btc_delta = (random.random() - 0.45) * 120
     eth_delta = (random.random() - 0.48) * 8
     sol_delta = (random.random() - 0.52) * 1.5
@@ -441,6 +459,32 @@ def get_demo_orders():
     eth_price = 3520.50 + eth_delta
     sol_price = 148.20 + sol_delta
 
+    btc_fireballs = [
+        {'price': '$69,500', 'raw_size': 5.2, 'val_fmt': '$359K', 'pct': 76, 'level': 2},
+        {'price': '$70,200', 'raw_size': 12.8, 'val_fmt': '$897K', 'pct': 92, 'level': 3}
+    ]
+    btc_shields = [
+        {'price': '$67,000', 'raw_size': 8.4, 'val_fmt': '$567K', 'pct': 50, 'level': 2},
+        {'price': '$65,000', 'raw_size': 14.1, 'val_fmt': '$930K', 'pct': 18, 'level': 3}
+    ]
+
+    eth_fireballs = [
+        {'price': '$3,620', 'raw_size': 80.0, 'val_fmt': '$290K', 'pct': 68, 'level': 2},
+        {'price': '$3,760', 'raw_size': 250.0, 'val_fmt': '$940K', 'pct': 90, 'level': 3}
+    ]
+    eth_shields = [
+        {'price': '$3,420', 'raw_size': 95.0, 'val_fmt': '$327K', 'pct': 36, 'level': 2},
+        {'price': '$3,280', 'raw_size': 210.0, 'val_fmt': '$697K', 'pct': 12, 'level': 3}
+    ]
+
+    sol_fireballs = [
+        {'price': '$158', 'raw_size': 850.0, 'val_fmt': '$131K', 'pct': 50, 'level': 2},
+        {'price': '$172', 'raw_size': 2200.0, 'val_fmt': '$374K', 'pct': 88, 'level': 3}
+    ]
+    sol_shields = [
+        {'price': '$142', 'raw_size': 1800.0, 'val_fmt': '$253K', 'pct': 8, 'level': 3}
+    ]
+
     return [
         {
             'product_id': 'BTC-USD',
@@ -448,18 +492,14 @@ def get_demo_orders():
             'tp_price': '$70,500.00',
             'sl_price': '$64,000.00',
             'current_price': btc_price,
-            'health': 88, # Bull close to K.O. strike!
+            'health': 88,
             'mission_value': '$34,210.00',
             'upside': '+$1,040.00',
             'age': '02:45 PM',
-            'fireballs': [
-                {'price': '$69,500', 'raw_size': 5.2, 'val_fmt': '$359K', 'pct': 76, 'level': 2},
-                {'price': '$70,200', 'raw_size': 12.8, 'val_fmt': '$897K', 'pct': 92, 'level': 3}
-            ],
-            'shields': [
-                {'price': '$67,000', 'raw_size': 8.4, 'val_fmt': '$567K', 'pct': 50, 'level': 2},
-                {'price': '$65,000', 'raw_size': 14.1, 'val_fmt': '$930K', 'pct': 18, 'level': 3}
-            ]
+            'fireballs': btc_fireballs,
+            'shields': btc_shields,
+            'ufos': btc_fireballs,
+            'stars': btc_shields
         },
         {
             'product_id': 'ETH-USD',
@@ -467,18 +507,14 @@ def get_demo_orders():
             'tp_price': '$3,800.00',
             'sl_price': '$3,200.00',
             'current_price': eth_price,
-            'health': 53, # Dead-even mid-arena brawl
+            'health': 53,
             'mission_value': '$14,082.00',
             'upside': '+$1,118.00',
             'age': '01:15 PM',
-            'fireballs': [
-                {'price': '$3,620', 'raw_size': 80.0, 'val_fmt': '$290K', 'pct': 68, 'level': 2},
-                {'price': '$3,760', 'raw_size': 250.0, 'val_fmt': '$940K', 'pct': 90, 'level': 3}
-            ],
-            'shields': [
-                {'price': '$3,420', 'raw_size': 95.0, 'val_fmt': '$327K', 'pct': 36, 'level': 2},
-                {'price': '$3,280', 'raw_size': 210.0, 'val_fmt': '$697K', 'pct': 12, 'level': 3}
-            ]
+            'fireballs': eth_fireballs,
+            'shields': eth_shields,
+            'ufos': eth_fireballs,
+            'stars': eth_shields
         },
         {
             'product_id': 'SOL-USD',
@@ -486,17 +522,14 @@ def get_demo_orders():
             'tp_price': '$175.00',
             'sl_price': '$140.00',
             'current_price': sol_price,
-            'health': 23, # Bull under pressure near Stop Loss
+            'health': 23,
             'mission_value': '$4,446.00',
             'upside': '+$804.00',
             'age': '11:30 AM',
-            'fireballs': [
-                {'price': '$158', 'raw_size': 850.0, 'val_fmt': '$131K', 'pct': 50, 'level': 2},
-                {'price': '$172', 'raw_size': 2200.0, 'val_fmt': '$374K', 'pct': 88, 'level': 3}
-            ],
-            'shields': [
-                {'price': '$142', 'raw_size': 1800.0, 'val_fmt': '$253K', 'pct': 8, 'level': 3}
-            ]
+            'fireballs': sol_fireballs,
+            'shields': sol_shields,
+            'ufos': sol_fireballs,
+            'stars': sol_shields
         }
     ]
 
@@ -537,12 +570,667 @@ def get_demo_history():
         }
     ]
 
-# --- 6. Arcade CSS & Theme Engine ---
+# --- 6. Fetch Orders & History Data ---
 
-st.markdown("""
+if demo_mode:
+    orders = get_demo_orders()
+    history = get_demo_history()
+    client = None
+else:
+    client = get_api_client()
+    if client:
+        spinner_msg = "⚔️ Scanning Coinbase Arena for active bouts..." if is_kombat else "🔭 Scanning Deep Space for missions..."
+        with st.spinner(spinner_msg):
+            orders = get_open_orders_data(client)
+            history = get_mission_history(client, limit=10)
+    else:
+        orders = []
+        history = []
+
+# --- 7. Theme-Specific Rendering ---
+
+if not is_kombat:
+    # ==========================================
+    # 🚀 MOON LANDER (CLASSIC SPACE THEME)
+    # ==========================================
+    st.title("Coinbase Moon Lander")
+    st.markdown("*Visualizing your trade trajectories in real-time.*")
+
+    st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+/* --- Threat Radar Levels --- */
+.ufo.level-1 { font-size: 14px; opacity: 0.6; filter: none; }
+.ufo.level-2 { font-size: 24px; opacity: 0.9; }
+.ufo.level-3 { 
+    font-size: 42px; 
+    opacity: 1; 
+    z-index: 6;
+    filter: drop-shadow(0 0 12px rgba(255, 0, 0, 0.9)); 
+    animation: hover-mothership 6s ease-in-out infinite; 
+}
+
+.star-support.level-1 { font-size: 10px; opacity: 0.5; filter: none; }
+.star-support.level-2 { font-size: 20px; opacity: 0.8; }
+.star-support.level-3 { 
+    font-size: 36px; 
+    opacity: 1; 
+    z-index: 5;
+    filter: drop-shadow(0 0 12px rgba(255, 215, 0, 0.9)); 
+}
+
+@keyframes hover-mothership {
+    0% { transform: translateY(0) rotate(0deg); }
+    50% { transform: translateY(-4px) rotate(-2deg); }
+    100% { transform: translateY(0) rotate(0deg); }
+}
+
+/* --- HUD Animations --- */
+@keyframes scanline {
+    0% { transform: translateY(-100%); }
+    100% { transform: translateY(100%); }
+}
+@keyframes flicker {
+    0% { opacity: 0.97; }
+    5% { opacity: 0.95; }
+    10% { opacity: 0.9; }
+    15% { opacity: 0.95; }
+    20% { opacity: 0.99; }
+    50% { opacity: 0.95; }
+    80% { opacity: 0.9; }
+    100% { opacity: 0.97; }
+}
+@keyframes pulse-glow {
+    0% { box-shadow: 0 0 5px rgba(0, 243, 255, 0.2), inset 0 0 5px rgba(0, 243, 255, 0.1); }
+    50% { box-shadow: 0 0 20px rgba(0, 243, 255, 0.6), inset 0 0 10px rgba(0, 243, 255, 0.3); }
+    100% { box-shadow: 0 0 5px rgba(0, 243, 255, 0.2), inset 0 0 5px rgba(0, 243, 255, 0.1); }
+}
+@keyframes engine-thrust {
+    0% { height: 15px; opacity: 0.8; }
+    100% { height: 25px; opacity: 1; }
+}
+@keyframes star-fly {
+    from { transform: translateX(0); }
+    to { transform: translateX(-2000px); }
+}
+
+/* --- Optimized Rendering Hints --- */
+.flight-deck {
+    contain: layout paint style;
+}
+.starfield {
+    will-change: transform;
+    /* Force GPU layer creation */
+    transform: translateZ(0); 
+}
+.ship-container {
+    will-change: left, transform; /* 'left' changes during transition, transform for rotation */
+}
+
+/* --- Rocket Engine Plume --- */
+/* --- Rocket Engine Plume --- */
+@keyframes engine-flicker {
+    0% { transform: translateY(-50%) scale(1, 0.8); opacity: 0.9; }
+    100% { transform: translateY(-50%) scale(1.2, 1.1); opacity: 1; }
+}
+
+.engine-plume {
+    position: absolute;
+    top: 50%;
+    left: -24px; /* Shifted slightly more left to accommodate longer flame */
+    width: 50px; /* Slightly longer */
+    height: 14px;
+    /* Flame Gradient: Transparent -> Orange -> Yellow -> White Core (at engine) */
+    background: linear-gradient(to right, transparent, rgba(255, 69, 0, 0.9), rgba(255, 215, 0, 1), #ffffff);
+    border-radius: 50% 0 0 50%;
+    transform: translateY(-50%);
+    /* PERFORMANCE: Removed blur and complex shadow to save CPU */
+    will-change: transform, opacity;
+    z-index: -1;
+    animation: engine-flicker 0.08s infinite alternate;
+    /* Simple faint glow only */
+    box-shadow: 0 0 5px rgba(255, 100, 0, 0.5);
+}
+
+/* Plume for Retreating (Flying Left) */
+.ship-container.retreat .engine-plume {
+    left: auto;
+    right: -24px;
+    /* Reverse Gradient: White -> Yellow -> Orange -> Transparent */
+    background: linear-gradient(to left, transparent, rgba(255, 69, 0, 0.9), rgba(255, 215, 0, 1), #ffffff);
+    border-radius: 0 50% 50% 0;
+}
+
+/* --- Containers --- */
+.hud-container {
+    background-color: #050a10;
+    color: #aaccff;
+    font-family: 'Share Tech Mono', monospace;
+    border: 1px solid #1e3a5a;
+    border-radius: 4px;
+    padding: 15px;
+    margin-bottom: 25px;
+    position: relative;
+    overflow: visible; /* Changed from hidden to visible to prevent clipping overlays */
+    box-shadow: 0 0 15px rgba(0,0,0,0.5);
+}
+.hud-container::before {
+    content: " ";
+    display: block;
+    position: absolute;
+    top: 0; left: 0; bottom: 0; right: 0;
+    background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+    z-index: 2;
+    background-size: 100% 2px, 3px 100%;
+    pointer-events: none;
+}
+
+/* --- Header --- */
+.mission-h.telemetry-grid {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 15px;
+    border-top: 1px dotted #1e3a5a;
+    padding-top: 15px;
+    overflow-x: auto;
+}
+.t-module {
+    background: rgba(30, 58, 90, 0.4);
+    border: 1px solid rgba(30, 58, 90, 0.5);
+    padding: 8px;
+    border-radius: 2px;
+    min-width: 100px; /* Prevent crushing */
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+.t-label {
+    display: block;
+    font-size: 0.75em; /* Slightly larger */
+    color: #88aacc; /* Brighter blue for contrast */
+    margin-bottom: 2px;
+    white-space: nowrap;
+}
+.mission-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #1e3a5a;
+    padding-bottom: 8px;
+    margin-bottom: 15px;
+}
+.mission-title {
+    font-size: 1.5em;
+    color: #4facfe;
+    text-transform: uppercase;
+    text-shadow: 0 0 5px #4facfe;
+    letter-spacing: 2px;
+}
+.mission-status {
+    font-size: 0.9em;
+    padding: 2px 8px;
+    border: 1px solid;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* --- Track (Space) --- */
+.flight-deck {
+    position: relative;
+    height: 160px; /* Increased height to prevent clipping */
+    background: #000;
+    border: 1px solid #333;
+    margin: 15px 0;
+    overflow: visible; /* Changed from hidden to visible */
+    height: 300px; /* Increased to 300px to ensure absolutely no clipping */
+    perspective: 1000px;
+}
+.price-tag {
+    position: absolute;
+    bottom: -20px; /* Moved up slightly */
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 1em;
+    font-weight: bold;
+    color: #fff;
+    text-shadow: 0 0 3px #000;
+    white-space: nowrap;
+    z-index: 110; /* Ensure it stays on top of overlay if they touch */
+}
+.diagnostic-overlay {
+    position: absolute;
+    bottom: -110px; /* Pushed significantly lower to clear the price tag */
+    left: 50%;
+    transform: translateX(-50%);
+    width: 160px;
+    font-size: 0.75em;
+    color: rgba(175, 200, 255, 0.9);
+    background: rgba(5, 10, 16, 0.85); /* Semi-opaque background */
+    border: 1px solid rgba(0, 243, 255, 0.2);
+    padding: 4px;
+    border-radius: 4px;
+    z-index: 100;
+    text-align: center;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+    pointer-events: none;
+}
+.diag-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 1px 4px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.diag-row:last-child { margin-bottom: 0; border-bottom: none; }
+
+.starfield {
+    position: absolute;
+    width: 200%;
+    height: 100%;
+    background-image: 
+        radial-gradient(1px 1px at 10px 10px, white, transparent),
+        radial-gradient(1px 1px at 123px 45px, white, transparent),
+        radial-gradient(2px 2px at 50px 80px, #88ccff, transparent),
+        radial-gradient(1.5px 1.5px at 200px 20px, white, transparent);
+    background-size: 300px 200px;
+    animation: star-fly 30s linear infinite;
+    opacity: 0.6;
+}
+
+.ship-container {
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 60px; 
+    height: 100px;
+    z-index: 10;
+    transition: left 1.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* SVG Ship Styling */
+.ship-svg {
+    width: 100%;
+    height: 100%;
+    filter: drop-shadow(0 0 8px rgba(0, 243, 255, 0.6));
+    transform: rotate(90deg); /* Face right by default */
+}
+.ship-container.retreat .ship-svg {
+    transform: rotate(-90deg); /* Face left */
+    filter: drop-shadow(0 0 8px rgba(255, 75, 75, 0.6));
+}
+.ship-container.staging .ship-svg {
+    transform: rotate(0deg); /* Disable rotation for Staging (it's drawn right-oriented) */
+    filter: drop-shadow(0 0 5px rgba(255, 170, 0, 0.4));
+}
+/* Staging specific plume (venting smoke at base) */
+.ship-container.staging .engine-plume {
+    display: none; /* Hide standard engine plume */
+}
+/* Staging specific price tag positioning to avoid overlap */
+.ship-container.staging .price-tag {
+    top: -30px; 
+}
+
+/* --- Flight Animation (Bobbing) --- */
+@keyframes flight-bob {
+    0% { transform: translate(-50%, -50%) translateY(0); }
+    50% { transform: translate(-50%, -50%) translateY(-5px); } 
+    100% { transform: translate(-50%, -50%) translateY(0); }
+}
+
+.ship-container.flight-bob {
+    animation: flight-bob 3s ease-in-out infinite;
+}
+
+
+.ship-container.hover-mode .ship-svg {
+    transform: rotate(0deg); /* Point Up */
+    filter: drop-shadow(0 0 8px rgba(0, 243, 255, 0.4));
+}
+
+/* --- UFO (Resistance) --- */
+@keyframes hover-ufo {
+    0% { transform: translateY(0) rotate(5deg); }
+    50% { transform: translateY(-10px) rotate(-5deg); }
+    100% { transform: translateY(0) rotate(5deg); }
+}
+.ufo {
+    position: absolute;
+    top: 30%; /* Default, will vary slightly randomly if desired */
+    font-size: 24px;
+    animation: hover-ufo 2s ease-in-out infinite;
+    z-index: 5;
+    filter: drop-shadow(0 0 5px rgba(255, 0, 0, 0.5));
+    transition: left 0.5s ease;
+}
+
+/* --- STAR (Support) --- */
+@keyframes twinkle {
+    0%, 100% { opacity: 1; transform: scale(1); filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.8)); }
+    50% { opacity: 0.8; transform: scale(1.2); filter: drop-shadow(0 0 15px rgba(255, 215, 0, 1)); }
+}
+.star-support {
+    position: absolute;
+    top: 60%;
+    font-size: 20px;
+    animation: twinkle 2s ease-in-out infinite alternate;
+    z-index: 4;
+    transition: left 0.5s ease;
+}
+</style>
+""", unsafe_allow_html=True)
+
+    if not orders:
+        st.info("No active moon missions initiated. (Toggle Demo Simulation Mode in sidebar for a live flight simulation)")
+    else:
+        st.markdown(f"### Active Trajectories: {len(orders)}")
+        # SVG Ship Assets
+        # Normal Flight: Detailed Gold Rocket (No Launchpad)
+        svg_ship_normal = textwrap.dedent("""
+        <svg viewBox="0 0 60 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- Rocket Body (Vertical) -->
+        <path d="M30 20 L38 35 V85 H22 V35 L30 20 Z" fill="#E0E0E0" stroke="#FFF" stroke-width="2"/>
+        <!-- Nose Cone -->
+        <path d="M30 20 L38 35 H22 L30 20 Z" fill="#FFD700" stroke="#FFD700" stroke-width="1"/>
+        <!-- Fins -->
+        <path d="M22 75 L14 88 H22 V75 Z" fill="#FF4500" stroke="#FFF" stroke-width="1"/>
+        <path d="M38 75 L46 88 H38 V75 Z" fill="#FF4500" stroke="#FFF" stroke-width="1"/>
+        <!-- Engine Nozzle -->
+        <path d="M26 85 L24 92 H36 L34 85" fill="#333"/>
+        </svg>
+        """)
+
+        # Alert Flight: Detailed Rocket (Red Warning Scheme)
+        svg_ship_alert = textwrap.dedent("""
+        <svg viewBox="0 0 60 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- Rocket Body (Vertical) - Red Warning -->
+        <path d="M30 20 L38 35 V85 H22 V35 L30 20 Z" fill="#8B0000" stroke="#FF4b4b" stroke-width="2"/>
+        <!-- Nose Cone -->
+        <path d="M30 20 L38 35 H22 L30 20 Z" fill="#FF4b4b" stroke="#FF4b4b" stroke-width="1"/>
+        <!-- Fins -->
+        <path d="M22 75 L14 88 H22 V75 Z" fill="#FF0000" stroke="#FF4b4b" stroke-width="1"/>
+        <path d="M38 75 L46 88 H38 V75 Z" fill="#FF0000" stroke="#FF4b4b" stroke-width="1"/>
+        <!-- Engine Nozzle -->
+        <path d="M26 85 L24 92 H36 L34 85" fill="#333"/>
+        </svg>
+        """)
+
+        for o in orders:
+            if o.get('health') is not None:
+                pid = o['product_id']
+                health = o['health']
+                price_disp = f"${o['current_price']:,.2f}"
+                tp_disp = o['tp_price']
+                sl_disp = o['sl_price']
+
+                # --- Generate UFO & Star HTML ---
+                ufo_html = ""
+                star_html = ""
+
+                # Track placed items to avoid collisions per mission
+                # Format: {'x': int, 'y': int}
+                placed_items = []
+
+                def get_game_coords_safe(seed_val, min_x, max_x, placed_list):
+                    rng = random.Random(str(seed_val))
+
+                    # Try multiple times to find a free spot
+                    best_x, best_y = 0, 0
+
+                    for attempt in range(20):
+                        # 1. Generate Candidate
+                        if min_x >= max_x: x = min_x
+                        else: x = rng.randint(int(min_x), int(max_x))
+
+                        y = rng.randint(10, 80)
+
+                        # 2. Adjust for Rocket Lane 
+                        if 45 < y < 55:
+                            if y % 2 == 0: y -= 15
+                            else: y += 15
+
+                        # 3. Collision Check
+                        collision = False
+                        for p in placed_list:
+                            # Simple Euclidean check (approx 5% radius safe zone)
+                            dist = ((p['x'] - x)**2 + (p['y'] - y)**2)**0.5
+                            if dist < 5.0: # 5% overlap distance
+                                collision = True
+                                break
+
+                        if not collision:
+                            # Found a good spot!
+                            return x, y
+
+                        # Store as fallback if we fail all attempts (better to slightly overlap than not show)
+                        if attempt == 0: best_x, best_y = x, y
+
+                    # If we exhausted retries, slightly jitter the fallback to avoid perfect stack
+                    return best_x + rng.randint(-2, 2), best_y + rng.randint(-2, 2)
+
+                # Rocket Position = health
+                rocket_pos = int(health)
+
+                # UFO Zone: 0 to Rocket-10
+                ufo_max_x = max(5, rocket_pos - 10)
+
+                # Star Zone: Rocket+10 to 100
+                star_min_x = min(95, rocket_pos + 10)
+
+                if 'ufos' in o:
+                    for u in o['ufos']:
+                        x, y = get_game_coords_safe(u['price'], 2, ufo_max_x, placed_items)
+                        placed_items.append({'x': x, 'y': y})
+
+                        lvl = u.get('level', 2)
+                        icon = '🛸'
+                        if lvl == 3: icon = '👾' # Mothership
+                        if lvl == 1: icon = '🛸' # Scout (Same icon, smaller via CSS)
+
+                        ufo_html += f'<div class="ufo level-{lvl}" style="left: {x}%; top: {y}%;" title="Sell Wall: {u["price"]} (Vol: {u["val_fmt"]})" data-price="{u["price"]}">{icon}</div>'
+
+                if 'stars' in o:
+                    for s in o['stars']:
+                        x, y = get_game_coords_safe(s['price'], star_min_x, 98, placed_items)
+                        placed_items.append({'x': x, 'y': y})
+
+                        lvl = s.get('level', 2)
+                        icon = '⭐'
+                        if lvl == 3: icon = '🪐' # Planet/Moon
+                        if lvl == 1: icon = '✨' # Small sparkle
+
+                        star_html += f'<div class="star-support level-{lvl}" style="left: {x}%; top: {y}%;" title="Buy Support: {s["price"]} (Vol: {s["val_fmt"]})" data-price="{s["price"]}">{icon}</div>'
+                val_disp = o.get('mission_value', 'N/A')
+                upside_disp = o.get('upside', 'N/A')
+                age_disp = o.get('age', 'N/A')
+                side = o.get('side', 'BUY')
+
+                # Logic
+                # BUY = "Staging for Liftoff" (Orange/Yellow), Vertical Rocket on Launchpad
+                # SELL = 
+                #   - UNKNOWN TREND -> "Hover Mode" (Vertical, Bobbing)
+                #   - UP TREND -> "In Flight" (Right)
+                #   - DOWN TREND -> "Retreating" (Left, Red)
+
+                staging_class = ""
+                retreat_class = ""
+                hover_class = ""
+
+                if side == 'BUY':
+                     is_retreating = False 
+                     status_color = '#ffaa00' # Orange for "Liftoff Prep"
+                     status_text = 'STAGING'
+                     staging_class = "staging"
+
+                     # Simplified SVG - No patterns/defs to avoid rendering bugs
+                     svg_ship_staging = textwrap.dedent("""
+                     <svg viewBox="0 0 60 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <!-- Launch Tower Structure (Left Side) -->
+                        <!-- Main Truss -->
+                        <rect x="2" y="20" width="12" height="80" stroke="#666" stroke-width="2"/>
+                        <!-- Cross Bracing (Manual lines instead of pattern) -->
+                        <path d="M2 20 L14 30 M2 30 L14 40 M2 40 L14 50 M2 50 L14 60 M2 60 L14 70 M2 70 L14 80 M2 80 L14 90 M2 90 L14 100" stroke="#444" stroke-width="1"/>
+
+                        <!-- Arms -->
+                        <line x1="14" y1="35" x2="28" y2="35" stroke="#888" stroke-width="3"/> <!-- Upper Arm -->
+                        <line x1="14" y1="75" x2="24" y2="75" stroke="#888" stroke-width="3"/> <!-- Lower Arm -->
+
+                        <!-- Rocket Body (Vertical) -->
+                        <path d="M30 20 L38 35 V85 H22 V35 L30 20 Z" fill="#E0E0E0" stroke="#FFF" stroke-width="2"/>
+
+                        <!-- Nose Cone Detail -->
+                        <path d="M30 20 L38 35 H22 L30 20 Z" fill="#FFD700" stroke="#FFD700" stroke-width="1"/>
+
+                        <!-- Fins (Bigger/Brighter) -->
+                        <path d="M22 75 L14 88 H22 V75 Z" fill="#FF4500" stroke="#FFF" stroke-width="1"/>
+                        <path d="M38 75 L46 88 H38 V75 Z" fill="#FF4500" stroke="#FFF" stroke-width="1"/>
+
+                        <!-- Engine Nozzle -->
+                        <path d="M26 85 L24 92 H36 L34 85" fill="#333"/>
+
+                        <!-- Launch Pad Base -->
+                        <rect x="10" y="92" width="40" height="8" fill="#555" stroke="#333"/>
+
+                        <!-- Venting Smoke (Simple opacity pulse) -->
+                         <circle cx="38" cy="94" r="4" fill="white" fill-opacity="0.8">
+                            <animate attributeName="r" values="4;6;4" dur="2s" repeatCount="indefinite"/>
+                            <animate attributeName="fill-opacity" values="0.8;0.2;0.8" dur="2s" repeatCount="indefinite"/>
+                        </circle>
+                     </svg>
+                     """)
+                     # Force strip all indentation to prevent Markdown code block triggers
+                     ship_icon = "".join([line.strip() for line in svg_ship_staging.split('\n')])
+                     plume_style = "" # Handled inside SVG or disabled
+
+                else:
+                     # SELL (In Flight)
+
+                     # Initialize price history if needed
+                     if 'price_history' not in st.session_state:
+                         st.session_state.price_history = {}
+
+                     prev_data = st.session_state.price_history.get(pid, {})
+                     prev_price = prev_data.get('price', 0)
+                     prev_trend = prev_data.get('trend', 'NEUTRAL') # Default to NEUTRAL/HOVER
+
+                     current_price = o['current_price']
+
+                     # Trend Logic
+                     if prev_price == 0:
+                         # FIRST LOAD -> Force Right (Profit Direction) as per user request
+                         trend_direction = 'RIGHT'
+                     elif current_price > prev_price:
+                         trend_direction = 'RIGHT'
+                     elif current_price < prev_price:
+                         trend_direction = 'LEFT'
+                     else:
+                         trend_direction = prev_trend # Maintain state
+
+                     # Update history
+                     st.session_state.price_history[pid] = {
+                         'price': current_price,
+                         'trend': trend_direction
+                     }
+
+                     # Apply Visuals based on Trend
+                     is_retreating = (trend_direction == 'LEFT')
+
+                     status_color = '#00f3ff' if health > 50 else '#ffaa00' if health > 20 else '#ff4b4b'
+                     status_text = 'STABLE' if health > 50 else 'UNSTABLE' if health > 20 else 'CRITICAL'
+                     ship_icon = svg_ship_alert if is_retreating else svg_ship_normal
+                     retreat_class = "retreat" if is_retreating else ""
+                     plume_style = "" # Default engines
+
+                     # Create robust single-line SVG string
+                     ship_icon = "".join([line.strip() for line in ship_icon.split('\n')])
+
+                # Visual Clamp: Use CSS calc to keep rocket fully inside container
+                # The rocket's max dimension is 100px (when horizontal).
+                # We need the CENTER to be at least 50px from edges.
+                # 0% health -> Center at 50px
+                # 100% health -> Center at 100% - 50px
+                # Formula: 50px + (100% - 100px) * (health / 100)
+
+                # Dedent the HTML content to prevent it from being rendered as a code block
+                # We use distinct strings concatenated to avoid indentation issues entirely
+                html_content = f"""
+    <div class="hud-container">
+    <div class="mission-header">
+    <span class="mission-title">{pid} <span style="font-size: 0.6em; opacity: 0.7;">[{side}]</span></span>
+    <span class="mission-status" style="color: {status_color}; border-color: {status_color}; text-shadow: 0 0 5px {status_color};">
+    STATUS: {status_text}
+    </span>
+    </div>
+    <div class="flight-deck">
+    <div class="starfield"></div>
+    {ufo_html}
+    {star_html}
+    <div class="marker sl"><span class="marker-label" style="color: #ff4b4b;">SL {sl_disp}</span></div>
+    <div class="marker tp"><span class="marker-label" style="color: #00ff00;">TP {tp_disp}</span></div>
+    <div class="ship-container {retreat_class} {staging_class} flight-bob" style="left: calc(50px + (100% - 100px) * ({health} / 100));">
+    <div class="ship-svg">{ship_icon}</div>
+    <div class="engine-plume" style="{plume_style}"></div>
+    <div class="price-tag">{price_disp}</div>
+    </div>
+    </div>
+    <div class="telemetry-grid">
+    <div class="t-module"><span class="t-label">MISSION TIME</span><span class="t-value" style="color: #4facfe">{age_disp}</span></div>
+    <div class="t-module"><span class="t-label">CURRENT ALT</span><span class="t-value">{price_disp}</span></div>
+    <div class="t-module"><span class="t-label">PAYLOAD VAL</span><span class="t-value" style="color: #ffd700">{val_disp}</span></div>
+    <div class="t-module"><span class="t-label">EST. YIELD</span><span class="t-value" style="color: {status_color}">{upside_disp}</span></div>
+    </div>
+    </div>
+    """
+                st.markdown(html_content, unsafe_allow_html=True)
+
+    # Mission History Section (Moon Lander)
+    if history:
+        st.markdown("---")
+        st.markdown("### Mission Hall of Fame (Recent Landings)")
+        for h in history:
+            status = h.get('status', 'UNKNOWN')
+            border_color = "#ffd700"
+            text_color = "#ffd700"
+            header_text = f"CONFIRMED LANDING: {h['product']}"
+            status_text = "SUCCESS"
+            
+            if status == 'CRASH LANDED':
+                border_color = "#ff4b4b"
+                text_color = "#ff4b4b"
+                header_text = f"CRASH LANDING: {h['product']}"
+                status_text = "FAILED"
+            elif status == 'ABORTED':
+                border_color = "#ffaa00"
+                text_color = "#ffaa00"
+                header_text = f"MISSION ABORTED: {h['product']}"
+                status_text = "ABORTED"
+            
+            hist_html = f"""
+<div class="hud-container" style="border-color: {border_color}; opacity: 0.9;">
+<div class="mission-header" style="border-bottom: 1px dotted {border_color}; margin-bottom: 5px;">
+<span class="mission-title" style="color: {text_color}; font-size: 1.2em;">{header_text}</span>
+<span class="mission-status" style="color: {text_color}; border-color: {border_color}; text-shadow: 0 0 5px {border_color};">{status_text}</span>
+</div>
+<div class="telemetry-grid" style="grid-template-columns: repeat(5, 1fr); border: none; padding-top: 5px;">
+<div class="t-module"><span class="t-label">TOUCHDOWN TIME</span><span class="t-value">{h['time']}</span></div>
+<div class="t-module"><span class="t-label">PAYLOAD SIZE</span><span class="t-value">{h['size']}</span></div>
+<div class="t-module"><span class="t-label">FINAL PRICE</span><span class="t-value">{h['price']}</span></div>
+<div class="t-module"><span class="t-label">MISSION FEES</span><span class="t-value" style="color: #ffaa00">{h['fees']}</span></div>
+<div class="t-module"><span class="t-label">NET PROFIT</span><span class="t-value" style="color: {'#00ff00' if h.get('raw_profit', 0) >= 0 else '#ff4b4b'}">{h['profit']}</span></div>
+</div>
+</div>
+"""
+            st.markdown(hist_html, unsafe_allow_html=True)
+    elif client:
+        st.caption("No recent missions found in flight logs.")
+
+else:
+    # ==========================================
+    # 🥊 MARKET KOMBAT (RETRO ARCADE THEME)
+    # ==========================================
+    st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Teko:wght@600;700&display=swap');
-
 /* --- Global Arcade Styling --- */
 .kombat-banner {
     text-align: center;
@@ -1129,275 +1817,240 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Header Banner
-st.markdown("""
-<div class="kombat-banner">
-    <h1 class="kombat-title">⚔️ MARKET KOMBAT ⚔️</h1>
-    <div class="kombat-sub">BULL [LONG] VS BEAR [BOSS] • ARCADE ORDER BOOK CLASH</div>
-</div>
-""", unsafe_allow_html=True)
+    st.markdown("""<div class="kombat-banner">
+<div class="kombat-title">MARKET KOMBAT</div>
+<div class="kombat-sub">⚡ ARCADE ORDER BOOK CLASH ⚡</div>
+</div>""", unsafe_allow_html=True)
 
-if demo_mode:
-    st.info("🕹️ **ARCADE DEMO MODE ACTIVE**: Simulating real-time order clashes and market depth. Toggle off in sidebar for live Coinbase trading.")
+    SVG_BULL_RAW = """
+    <svg viewBox="0 0 100 130" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <!-- Glowing Bull Horns -->
+      <path d="M22 28 C10 12, 8 0, 3 2 C0 4, 8 20, 24 35 Z" fill="#FFD700" stroke="#FFF" stroke-width="1.5"/>
+      <path d="M78 28 C90 12, 92 0, 97 2 C100 4, 92 20, 76 35 Z" fill="#FFD700" stroke="#FFF" stroke-width="1.5"/>
 
+      <!-- Bull Head & Snout -->
+      <ellipse cx="50" cy="42" rx="28" ry="24" fill="#3D2314" stroke="#1A0D07" stroke-width="2"/>
+      <ellipse cx="50" cy="52" rx="17" ry="12" fill="#6E3D1F"/>
+      <!-- Nostrils & Golden Septum Ring -->
+      <circle cx="43" cy="52" r="3" fill="#1A0D07"/>
+      <circle cx="57" cy="52" r="3" fill="#1A0D07"/>
+      <path d="M44 55 A6 6 0 0 0 56 55" stroke="#FFD700" stroke-width="3" fill="none"/>
 
-def render_clean_html(html_str):
-    cleaned = "\n".join([line.strip() for line in html_str.splitlines() if line.strip()])
-    st.markdown(cleaned, unsafe_allow_html=True)
+      <!-- Red Fighter Headband (Ryu Style) -->
+      <rect x="23" y="30" width="54" height="7" fill="#FF0044" rx="2"/>
+      <g class="bull-headband-flutter">
+        <path d="M23 34 L12 40 L16 33 Z" fill="#FF0044"/>
+        <path d="M23 35 L10 46 L15 37 Z" fill="#CC0033"/>
+      </g>
 
+      <!-- Fierce Eyes -->
+      <polygon points="34,35 44,38 37,42" fill="#00FFCC"/>
+      <polygon points="66,35 56,38 63,42" fill="#00FFCC"/>
 
-# --- 7. SVG Character Fighters & Assets ---
+      <!-- Muscular Torso -->
+      <path d="M30 62 L70 62 L64 100 L36 100 Z" fill="#2E1B10" stroke="#1A0D07" stroke-width="2"/>
+      <!-- Combat Wraps / Belt -->
+      <rect x="34" y="90" width="32" height="10" fill="#FF0044"/>
+      <rect x="38" y="93" width="24" height="4" fill="#FFCC00"/>
 
-# The Bull Fighter (Martial Arts Bull with Headband & Combat Wraps)
-SVG_BULL_RAW = """
-<svg viewBox="0 0 100 130" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- Glowing Bull Horns -->
-  <path d="M22 28 C10 12, 8 0, 3 2 C0 4, 8 20, 24 35 Z" fill="#FFD700" stroke="#FFF" stroke-width="1.5"/>
-  <path d="M78 28 C90 12, 92 0, 97 2 C100 4, 92 20, 76 35 Z" fill="#FFD700" stroke="#FFF" stroke-width="1.5"/>
-  
-  <!-- Bull Head & Snout -->
-  <ellipse cx="50" cy="42" rx="28" ry="24" fill="#3D2314" stroke="#1A0D07" stroke-width="2"/>
-  <ellipse cx="50" cy="52" rx="17" ry="12" fill="#6E3D1F"/>
-  <!-- Nostrils & Golden Septum Ring -->
-  <circle cx="43" cy="52" r="3" fill="#1A0D07"/>
-  <circle cx="57" cy="52" r="3" fill="#1A0D07"/>
-  <path d="M44 55 A6 6 0 0 0 56 55" stroke="#FFD700" stroke-width="3" fill="none"/>
-  
-  <!-- Red Fighter Headband (Ryu Style) -->
-  <rect x="23" y="30" width="54" height="7" fill="#FF0044" rx="2"/>
-  <g class="bull-headband-flutter">
-    <path d="M23 34 L12 40 L16 33 Z" fill="#FF0044"/>
-    <path d="M23 35 L10 46 L15 37 Z" fill="#CC0033"/>
-  </g>
-  
-  <!-- Fierce Eyes -->
-  <polygon points="34,35 44,38 37,42" fill="#00FFCC"/>
-  <polygon points="66,35 56,38 63,42" fill="#00FFCC"/>
-  
-  <!-- Muscular Torso -->
-  <path d="M30 62 L70 62 L64 100 L36 100 Z" fill="#2E1B10" stroke="#1A0D07" stroke-width="2"/>
-  <!-- Combat Wraps / Belt -->
-  <rect x="34" y="90" width="32" height="10" fill="#FF0044"/>
-  <rect x="38" y="93" width="24" height="4" fill="#FFCC00"/>
-  
-  <!-- Fists with Glowing Blue Wraps -->
-  <circle class="bull-fist-l" cx="22" cy="74" r="10" fill="#00FFCC" stroke="#FFFFFF" stroke-width="2"/>
-  <circle class="bull-fist-r" cx="76" cy="70" r="11" fill="#00FFCC" stroke="#FFFFFF" stroke-width="2"/>
-  
-  <!-- Sturdy Stance Legs -->
-  <rect x="34" y="100" width="12" height="24" fill="#1A0D07" rx="3"/>
-  <rect x="54" y="100" width="12" height="24" fill="#1A0D07" rx="3"/>
-</svg>
-"""
-SVG_BULL = "".join([l.strip() for l in SVG_BULL_RAW.splitlines()])
+      <!-- Fists with Glowing Blue Wraps -->
+      <circle class="bull-fist-l" cx="22" cy="74" r="10" fill="#00FFCC" stroke="#FFFFFF" stroke-width="2"/>
+      <circle class="bull-fist-r" cx="76" cy="70" r="11" fill="#00FFCC" stroke="#FFFFFF" stroke-width="2"/>
 
-# The Bear Boss (Armored Grizzly Boss with Claws & Red Glowing Aura)
-SVG_BEAR_RAW = """
-<svg viewBox="0 0 110 140" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- Bear Ears with Spikes -->
-  <circle cx="28" cy="24" r="12" fill="#1C1822" stroke="#FF0055" stroke-width="1.5"/>
-  <circle cx="82" cy="24" r="12" fill="#1C1822" stroke="#FF0055" stroke-width="1.5"/>
-  <circle cx="28" cy="24" r="6" fill="#FF0055"/>
-  <circle cx="82" cy="24" r="6" fill="#FF0055"/>
-  
-  <!-- Massive Bear Head -->
-  <ellipse cx="55" cy="48" rx="36" ry="30" fill="#2A2433" stroke="#100C16" stroke-width="2"/>
-  <ellipse cx="55" cy="58" rx="20" ry="15" fill="#423950"/>
-  <!-- Snarl Fangs -->
-  <path d="M47 62 L49 68 L51 62" fill="#FFFFFF"/>
-  <path d="M59 62 L61 68 L63 62" fill="#FFFFFF"/>
-  <ellipse cx="55" cy="54" rx="5" ry="3.5" fill="#000"/>
-  
-  <!-- Glowing Crimson Boss Eyes -->
-  <ellipse cx="41" cy="42" rx="5" ry="3" fill="#FF0033"/>
-  <ellipse cx="69" cy="42" rx="5" ry="3" fill="#FF0033"/>
-  <circle cx="41" cy="42" r="2" fill="#FFF"/>
-  <circle cx="69" cy="42" r="2" fill="#FFF"/>
-  
-  <!-- Heavy Spiked Pauldrons / Armor -->
-  <path d="M12 70 L30 55 L38 85 L18 90 Z" fill="#4B1224" stroke="#FF0055" stroke-width="1.5"/>
-  <polygon points="12,70 4,62 18,65" fill="#FFCC00"/>
-  <path d="M98 70 L80 55 L72 85 L92 90 Z" fill="#4B1224" stroke="#FF0055" stroke-width="1.5"/>
-  <polygon points="98,70 106,62 92,65" fill="#FFCC00"/>
-  
-  <!-- Massive Torso & Scar -->
-  <path d="M26 72 L84 72 L76 112 L34 112 Z" fill="#201A27" stroke="#100C16" stroke-width="2"/>
-  <path d="M40 78 L65 98" stroke="#FF0033" stroke-width="2" stroke-linecap="round"/>
-  
-  <!-- Bear Claws (Ready to Slash) -->
-  <g class="bear-slash-l">
-    <circle cx="18" cy="94" r="11" fill="#100C16" stroke="#FF0055" stroke-width="1.5"/>
-    <path d="M10 94 L5 88 M12 99 L7 96 M17 103 L14 102" stroke="#FFD700" stroke-width="2"/>
-  </g>
-  
-  <g class="bear-slash-r">
-    <circle cx="92" cy="94" r="11" fill="#100C16" stroke="#FF0055" stroke-width="1.5"/>
-    <path d="M100 94 L105 88 M98 99 L103 96 M93 103 L96 102" stroke="#FFD700" stroke-width="2"/>
-  </g>
-  
-  <!-- Legs -->
-  <rect x="32" y="112" width="16" height="24" fill="#140F1B" rx="3"/>
-  <rect x="62" y="112" width="16" height="24" fill="#140F1B" rx="3"/>
-</svg>
-"""
-SVG_BEAR = "".join([l.strip() for l in SVG_BEAR_RAW.splitlines()])
+      <!-- Sturdy Stance Legs -->
+      <rect x="34" y="100" width="12" height="24" fill="#1A0D07" rx="3"/>
+      <rect x="54" y="100" width="12" height="24" fill="#1A0D07" rx="3"/>
+    </svg>
+    """
+    SVG_BULL = "".join([l.strip() for l in SVG_BULL_RAW.splitlines()])
 
-# --- 8. Data Fetching & Execution ---
+    # The Bear Boss (Armored Grizzly Boss with Claws & Red Glowing Aura)
+    SVG_BEAR_RAW = """
+    <svg viewBox="0 0 110 140" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <!-- Bear Ears with Spikes -->
+      <circle cx="28" cy="24" r="12" fill="#1C1822" stroke="#FF0055" stroke-width="1.5"/>
+      <circle cx="82" cy="24" r="12" fill="#1C1822" stroke="#FF0055" stroke-width="1.5"/>
+      <circle cx="28" cy="24" r="6" fill="#FF0055"/>
+      <circle cx="82" cy="24" r="6" fill="#FF0055"/>
 
-if demo_mode:
-    orders = get_demo_orders()
-    history = get_demo_history()
-else:
-    client = get_api_client()
-    if client:
-        with st.spinner("⚔️ Scanning Coinbase Arena for active orders..."):
-            orders = get_open_orders_data(client)
-            history = get_mission_history(client, limit=10)
-    else:
-        orders = []
-        history = []
+      <!-- Massive Bear Head -->
+      <ellipse cx="55" cy="48" rx="36" ry="30" fill="#2A2433" stroke="#100C16" stroke-width="2"/>
+      <ellipse cx="55" cy="58" rx="20" ry="15" fill="#423950"/>
+      <!-- Snarl Fangs -->
+      <path d="M47 62 L49 68 L51 62" fill="#FFFFFF"/>
+      <path d="M59 62 L61 68 L63 62" fill="#FFFFFF"/>
+      <ellipse cx="55" cy="54" rx="5" ry="3.5" fill="#000"/>
 
-# --- 9. Arena Render Loop ---
+      <!-- Glowing Crimson Boss Eyes -->
+      <ellipse cx="41" cy="42" rx="5" ry="3" fill="#FF0033"/>
+      <ellipse cx="69" cy="42" rx="5" ry="3" fill="#FF0033"/>
+      <circle cx="41" cy="42" r="2" fill="#FFF"/>
+      <circle cx="69" cy="42" r="2" fill="#FFF"/>
 
-if not orders:
-    empty_html = """<div class="arena-card" style="text-align: center; padding: 40px;">
+      <!-- Heavy Spiked Pauldrons / Armor -->
+      <path d="M12 70 L30 55 L38 85 L18 90 Z" fill="#4B1224" stroke="#FF0055" stroke-width="1.5"/>
+      <polygon points="12,70 4,62 18,65" fill="#FFCC00"/>
+      <path d="M98 70 L80 55 L72 85 L92 90 Z" fill="#4B1224" stroke="#FF0055" stroke-width="1.5"/>
+      <polygon points="98,70 106,62 92,65" fill="#FFCC00"/>
+
+      <!-- Massive Torso & Scar -->
+      <path d="M26 72 L84 72 L76 112 L34 112 Z" fill="#201A27" stroke="#100C16" stroke-width="2"/>
+      <path d="M40 78 L65 98" stroke="#FF0033" stroke-width="2" stroke-linecap="round"/>
+
+      <!-- Bear Claws (Ready to Slash) -->
+      <g class="bear-slash-l">
+        <circle cx="18" cy="94" r="11" fill="#100C16" stroke="#FF0055" stroke-width="1.5"/>
+        <path d="M10 94 L5 88 M12 99 L7 96 M17 103 L14 102" stroke="#FFD700" stroke-width="2"/>
+      </g>
+
+      <g class="bear-slash-r">
+        <circle cx="92" cy="94" r="11" fill="#100C16" stroke="#FF0055" stroke-width="1.5"/>
+        <path d="M100 94 L105 88 M98 99 L103 96 M93 103 L96 102" stroke="#FFD700" stroke-width="2"/>
+      </g>
+
+      <!-- Legs -->
+      <rect x="32" y="112" width="16" height="24" fill="#140F1B" rx="3"/>
+      <rect x="62" y="112" width="16" height="24" fill="#140F1B" rx="3"/>
+    </svg>
+    """
+    SVG_BEAR = "".join([l.strip() for l in SVG_BEAR_RAW.splitlines()])
+
+    if not orders:
+        empty_html = """<div class="arena-card" style="text-align: center; padding: 40px;">
 <h2 style="font-family: 'Press Start 2P'; color: #ffd700;">NO FIGHTERS IN THE ARENA</h2>
 <p style="font-family: 'Teko'; font-size: 1.4rem; color: #8899aa;">
 No active open limit or bracket orders found on your Coinbase account.
 </p>
-<p style="color: #ff0055;">Toggle <b>🕹️ Arcade Demo Mode</b> in the sidebar to preview the battle engine!</p>
+<p style="color: #ff0055;">Toggle <b>🕹️ Demo Simulation Mode</b> in the sidebar to preview the battle engine!</p>
 </div>"""
-    st.markdown(empty_html, unsafe_allow_html=True)
-else:
-    for idx, o in enumerate(orders):
-        pid = o['product_id']
-        health = int(o.get('health', 50))
-        price_disp = f"${o['current_price']:,.2f}"
-        tp_disp = o.get('tp_price', 'N/A')
-        sl_disp = o.get('sl_price', 'N/A')
-        val_disp = o.get('mission_value', 'N/A')
-        upside_disp = o.get('upside', 'N/A')
-        age_disp = o.get('age', 'N/A')
-        side = o.get('side', 'BUY')
-        
-        bull_hp = max(0, min(100, health))
-        bear_hp = max(0, min(100, 100 - health))
-        bull_left_pct = int(10 + (bull_hp * 0.55))
-        
-        is_finish_him = bull_hp >= 85
-        is_staggered = bull_hp <= 20
-        aura_class = "aura-strike" if bull_hp > 50 else ("aura-danger" if is_staggered else "")
-        
-        fireball_html = ""
-        for fb in o.get('fireballs', []):
-            lvl = fb.get('level', 2)
-            pos = fb.get('pct', 50)
-            icon = "☄️" if lvl == 1 else ("🔥" if lvl == 2 else "💥")
-            fb_price = fb['price']
-            fb_val = fb['val_fmt']
-            fireball_html += f'<div class="projectile-hadouken lvl-{lvl}" style="left: {pos}%;" title="Sell Wall: {fb_price} (Vol: {fb_val})">{icon}<div class="badge-lbl badge-ask">{fb_price}</div></div>'
+        st.markdown(empty_html, unsafe_allow_html=True)
+    else:
+        for idx, o in enumerate(orders):
+            pid = o['product_id']
+            health = int(o.get('health', 50))
+            price_disp = f"${o['current_price']:,.2f}"
+            tp_disp = o.get('tp_price', 'N/A')
+            sl_disp = o.get('sl_price', 'N/A')
+            val_disp = o.get('mission_value', 'N/A')
+            upside_disp = o.get('upside', 'N/A')
+            age_disp = o.get('age', 'N/A')
+            side = o.get('side', 'BUY')
+            bull_hp = max(0, min(100, health))
+            bear_hp = max(0, min(100, 100 - health))
+            bull_left_pct = int(10 + (bull_hp * 0.55))
 
-        shield_html = ""
-        for sh in o.get('shields', []):
-            lvl = sh.get('level', 2)
-            pos = sh.get('pct', 30)
-            icon = "✨" if lvl == 1 else ("🛡️" if lvl == 2 else "⚡")
-            sh_price = sh['price']
-            sh_val = sh['val_fmt']
-            shield_html += f'<div class="support-shield lvl-{lvl}" style="left: {pos}%;" title="Buy Support: {sh_price} (Vol: {sh_val})">{icon}<div class="badge-lbl badge-bid">{sh_price}</div></div>'
+            is_finish_him = bull_hp >= 85
+            is_staggered = bull_hp <= 20
+            aura_class = "aura-strike" if bull_hp > 50 else ("aura-danger" if is_staggered else "")
 
-        alert_banner = ""
-        if is_finish_him:
-            alert_banner = '<div class="finish-him-banner">⚡ FINISH HIM! STRIKE TAKE PROFIT! ⚡</div>'
-            bull_anim = "bull-finish-him"
-            bear_anim = "bear-dizzy"
-            extra_vfx = '<div class="dizzy-stars-halo">💫 ⭐ 💫</div><div class="ki-dragon-wave">⚡🐉</div>'
-        elif is_staggered:
-            alert_banner = '<div class="danger-banner">⚠️ DANGER: BULL STAGGERED NEAR STOP LOSS ⚠️</div>'
-            bull_anim = "bull-staggered"
-            bear_anim = "bear-raging"
-            extra_vfx = '<div class="slash-arc-fx">🩸</div>'
-        else:
-            bull_anim = "bull-fighting"
-            bear_anim = "bear-fighting"
-            extra_vfx = '<div class="slash-arc-fx">⚔️</div>'
+            fireball_html = ""
+            for fb in o.get('fireballs', []):
+                lvl = fb.get('level', 2)
+                pos = fb.get('pct', 50)
+                icon = "☄️" if lvl == 1 else ("🔥" if lvl == 2 else "💥")
+                fb_price = fb['price']
+                fb_val = fb['val_fmt']
+                fireball_html += f'<div class="projectile-hadouken lvl-{lvl}" style="left: {pos}%;" title="Sell Wall: {fb_price} (Vol: {fb_val})">{icon}<div class="badge-lbl badge-ask">{fb_price}</div></div>'
 
-        clash_pos = min(76, bull_left_pct + 15)
-        clash_vfx = f'<div class="clash-burst" style="left: {clash_pos}%;">💥</div>'
+            shield_html = ""
+            for sh in o.get('shields', []):
+                lvl = sh.get('level', 2)
+                pos = sh.get('pct', 30)
+                icon = "✨" if lvl == 1 else ("🛡️" if lvl == 2 else "⚡")
+                sh_price = sh['price']
+                sh_val = sh['val_fmt']
+                shield_html += f'<div class="support-shield lvl-{lvl}" style="left: {pos}%;" title="Buy Support: {sh_price} (Vol: {sh_val})">{icon}<div class="badge-lbl badge-bid">{sh_price}</div></div>'
 
-        yield_color = '#00ff66' if '+' in upside_disp else '#ff3366'
+            alert_banner = ""
+            if is_finish_him:
+                alert_banner = '<div class="finish-him-banner">⚡ FINISH HIM! STRIKE TAKE PROFIT! ⚡</div>'
+                bull_anim = "bull-finish-him"
+                bear_anim = "bear-dizzy"
+                extra_vfx = '<div class="dizzy-stars-halo">💫 ⭐ 💫</div><div class="ki-dragon-wave">⚡🐉</div>'
+            elif is_staggered:
+                alert_banner = '<div class="danger-banner">⚠️ DANGER: BULL STAGGERED NEAR STOP LOSS ⚠️</div>'
+                bull_anim = "bull-staggered"
+                bear_anim = "bear-raging"
+                extra_vfx = '<div class="slash-arc-fx">🩸</div>'
+            else:
+                bull_anim = "bull-fighting"
+                bear_anim = "bear-fighting"
+                extra_vfx = '<div class="slash-arc-fx">⚔️</div>'
 
-        bout_html = f"""<div class="arena-card">
-<div class="hud-top-meta">
-<span class="hud-round-badge">ROUND {idx + 1}</span>
-<span class="hud-price-pill">{pid} • {price_disp}</span>
-</div>
-<div class="hud-fighters-row">
-<div class="fighter-tag-left">
-<span class="tag-name-left">THE BULL</span>
-<span class="tag-hp-left">{bull_hp}% HP</span>
-</div>
-<div class="hud-vs-text">VS</div>
-<div class="fighter-tag-right">
-<span class="tag-hp-right">{bear_hp}% HP</span>
-<span class="tag-name-right">BEAR BOSS [TP {tp_disp}]</span>
-</div>
-</div>
-<div class="hud-lifebars-strip">
-<div class="lifebar-box">
-<div class="lifebar-fill-bull" style="width: {bull_hp}%;"></div>
-</div>
-<div class="lifebar-box">
-<div class="lifebar-fill-bear" style="width: {bear_hp}%;"></div>
-</div>
-</div>
-{alert_banner}
-<div class="stage-arena">
-<div class="stage-floor"></div>
-{fireball_html}
-{shield_html}
-{clash_vfx}
-{extra_vfx}
-<div class="fighter-wrapper-bull {bull_anim} {aura_class}" style="left: {bull_left_pct}%;">
-{SVG_BULL}
-</div>
-<div class="fighter-wrapper-bear {bear_anim} aura-boss">
-{SVG_BEAR}
-</div>
-</div>
-<div class="telemetry-bar">
-<div class="stat-box">
-<span class="stat-lbl">MATCH CLOCK</span>
-<span class="stat-val" style="color: #00ffcc;">{age_disp}</span>
-</div>
-<div class="stat-box">
-<span class="stat-lbl">MARKET STRIKE</span>
-<span class="stat-val" style="color: #ffd700;">{price_disp}</span>
-</div>
-<div class="stat-box">
-<span class="stat-lbl">BOUNTY PURSE</span>
-<span class="stat-val" style="color: #ffffff;">{val_disp}</span>
-</div>
-<div class="stat-box">
-<span class="stat-lbl">EST. YIELD</span>
-<span class="stat-val" style="color: {yield_color};">{upside_disp}</span>
-</div>
-</div>
-</div>"""
-        st.markdown(bout_html, unsafe_allow_html=True)
+            clash_pos = min(76, bull_left_pct + 15)
+            clash_vfx = f'<div class="clash-burst" style="left: {clash_pos}%;">💥</div>'
 
-# --- 10. Kombat Hall of Fame (Match History) ---
+            yield_color = '#00ff66' if '+' in upside_disp else '#ff3366'
 
-if history:
-    st.markdown("### 🏆 KOMBAT HALL OF FAME (RECENT BOUTS)")
-    for h in history:
-        status = h.get('status', 'SUCCESS')
-        is_win = (status == 'SUCCESS')
-        card_class = "win" if is_win else "loss"
-        badge_text = "K.O. - VICTORY" if is_win else ("FATALITY - DEFEAT" if status == 'CRASH LANDED' else "MATCH ABORTED")
-        badge_color = "#00ff88" if is_win else "#ff0055"
-        
-        hist_html = f"""<div class="hall-card {card_class}">
+            bout_html = f"""<div class="arena-card">
+    <div class="hud-top-meta">
+    <span class="hud-round-badge">ROUND {idx + 1}</span>
+    <span class="hud-price-pill">{pid} • {price_disp}</span>
+    </div>
+    <div class="hud-fighters-row">
+    <div class="fighter-tag-left">
+    <span class="tag-name-left">THE BULL</span>
+    <span class="tag-hp-left">{bull_hp}% HP</span>
+    </div>
+    <div class="hud-vs-text">VS</div>
+    <div class="fighter-tag-right">
+    <span class="tag-hp-right">{bear_hp}% HP</span>
+    <span class="tag-name-right">BEAR BOSS [TP {tp_disp}]</span>
+    </div>
+    </div>
+    <div class="hud-lifebars-strip">
+    <div class="lifebar-box">
+    <div class="lifebar-fill-bull" style="width: {bull_hp}%;"></div>
+    </div>
+    <div class="lifebar-box">
+    <div class="lifebar-fill-bear" style="width: {bear_hp}%;"></div>
+    </div>
+    </div>
+    {alert_banner}
+    <div class="stage-arena">
+    <div class="stage-floor"></div>
+    {fireball_html}
+    {shield_html}
+    {clash_vfx}
+    {extra_vfx}
+    <div class="fighter-wrapper-bull {bull_anim} {aura_class}" style="left: {bull_left_pct}%;">
+    {SVG_BULL}
+    </div>
+    <div class="fighter-wrapper-bear {bear_anim} aura-boss">
+    {SVG_BEAR}
+    </div>
+    </div>
+    <div class="telemetry-bar">
+    <div class="stat-box">
+    <span class="stat-lbl">MATCH CLOCK</span>
+    <span class="stat-val" style="color: #00ffcc;">{age_disp}</span>
+    </div>
+    <div class="stat-box">
+    <span class="stat-lbl">MARKET STRIKE</span>
+    <span class="stat-val" style="color: #ffd700;">{price_disp}</span>
+    </div>
+    <div class="stat-box">
+    <span class="stat-lbl">BOUNTY PURSE</span>
+    <span class="stat-val" style="color: #ffffff;">{val_disp}</span>
+    </div>
+    <div class="stat-box">
+    <span class="stat-lbl">EST. YIELD</span>
+    <span class="stat-val" style="color: {yield_color};">{upside_disp}</span>
+    </div>
+    </div>
+    </div>"""
+            st.markdown(bout_html, unsafe_allow_html=True)
+
+    if history:
+        st.markdown("### 🏆 KOMBAT HALL OF FAME (RECENT BOUTS)")
+        for h in history:
+            status = h.get('status', 'SUCCESS')
+            is_win = (status == 'SUCCESS')
+            card_class = "win" if is_win else "loss"
+            badge_text = "K.O. - VICTORY" if is_win else ("FATALITY - DEFEAT" if status == 'CRASH LANDED' else "MATCH ABORTED")
+            badge_color = "#00ff88" if is_win else "#ff0055"
+            
+            hist_html = f"""<div class="hall-card {card_class}">
 <div>
 <span class="hall-title" style="color: {badge_color};">{badge_text}: {h['product']}</span>
 <span style="font-size: 0.85rem; color: #8899aa; margin-left: 12px;">{h['time']}</span>
@@ -1407,9 +2060,14 @@ if history:
 <span style="color: {badge_color}; font-weight: bold;">PROFIT: {h['profit']}</span>
 </div>
 </div>"""
-        st.markdown(hist_html, unsafe_allow_html=True)
+            st.markdown(hist_html, unsafe_allow_html=True)
 
-# --- 11. Auto-Refresh Logic ---
+
+# --- 8. Auto-Refresh Logic ---
+if not orders:
+    st.caption("No active trades. Auto-refreshing in 30s...")
+else:
+    st.caption(f"Last Updated: {datetime.now().strftime('%H:%M:%S')} | Auto-refreshing in 30s...")
 
 if auto_refresh:
     time.sleep(30)
