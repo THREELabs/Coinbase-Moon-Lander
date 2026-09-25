@@ -369,7 +369,7 @@ def get_open_orders_data(client):
         st.error(f"Error fetching live matches: {e}")
         return []
 
-def get_mission_history(client, limit=10):
+def get_mission_history(client, limit=30):
     if not client: return []
     try:
         resp = client.list_orders(order_status=["FILLED"], limit=limit*6)
@@ -618,7 +618,7 @@ else:
         spinner_msg = "⚔️ Scanning Coinbase Arena for active bouts..." if is_kombat else "🔭 Scanning Deep Space for missions..."
         with st.spinner(spinner_msg):
             orders = get_open_orders_data(client)
-            history = get_mission_history(client, limit=10)
+            history = get_mission_history(client, limit=30)
     else:
         orders = []
         history = []
