@@ -1153,34 +1153,32 @@ if not is_kombat:
 
                 # Dedent the HTML content to prevent it from being rendered as a code block
                 # We use distinct strings concatenated to avoid indentation issues entirely
-                html_content = f"""
-    <div class="hud-container">
-    <div class="mission-header">
-    <span class="mission-title">{pid} <span style="font-size: 0.6em; opacity: 0.7;">[{side}]</span></span>
-    <span class="mission-status" style="color: {status_color}; border-color: {status_color}; text-shadow: 0 0 5px {status_color};">
-    STATUS: {status_text}
-    </span>
-    </div>
-    <div class="flight-deck">
-    <div class="starfield"></div>
-    {ufo_html}
-    {star_html}
-    <div class="marker sl"><span class="marker-label" style="color: #ff4b4b;">SL {sl_disp}</span></div>
-    <div class="marker tp"><span class="marker-label" style="color: #00ff00;">TP {tp_disp}</span></div>
-    <div class="ship-container {retreat_class} {staging_class} flight-bob" style="left: calc(50px + (100% - 100px) * ({health} / 100));">
-    <div class="ship-svg">{ship_icon}</div>
-    <div class="engine-plume" style="{plume_style}"></div>
-    <div class="price-tag">{price_disp}</div>
-    </div>
-    </div>
-    <div class="telemetry-grid">
-    <div class="t-module"><span class="t-label">MISSION TIME</span><span class="t-value" style="color: #4facfe">{age_disp}</span></div>
-    <div class="t-module"><span class="t-label">CURRENT ALT</span><span class="t-value">{price_disp}</span></div>
-    <div class="t-module"><span class="t-label">PAYLOAD VAL</span><span class="t-value" style="color: #ffd700">{val_disp}</span></div>
-    <div class="t-module"><span class="t-label">EST. YIELD</span><span class="t-value" style="color: {status_color}">{upside_disp}</span></div>
-    </div>
-    </div>
-    """
+                html_content = f"""<div class="hud-container">
+<div class="mission-header">
+<span class="mission-title">{pid} <span style="font-size: 0.6em; opacity: 0.7;">[{side}]</span></span>
+<span class="mission-status" style="color: {status_color}; border-color: {status_color}; text-shadow: 0 0 5px {status_color};">
+STATUS: {status_text}
+</span>
+</div>
+<div class="flight-deck">
+<div class="starfield"></div>
+{ufo_html}
+{star_html}
+<div class="marker sl"><span class="marker-label" style="color: #ff4b4b;">SL {sl_disp}</span></div>
+<div class="marker tp"><span class="marker-label" style="color: #00ff00;">TP {tp_disp}</span></div>
+<div class="ship-container {retreat_class} {staging_class} flight-bob" style="left: calc(50px + (100% - 100px) * ({health} / 100));">
+<div class="ship-svg">{ship_icon}</div>
+<div class="engine-plume" style="{plume_style}"></div>
+<div class="price-tag">{price_disp}</div>
+</div>
+</div>
+<div class="telemetry-grid">
+<div class="t-module"><span class="t-label">MISSION TIME</span><span class="t-value" style="color: #4facfe">{age_disp}</span></div>
+<div class="t-module"><span class="t-label">CURRENT ALT</span><span class="t-value">{price_disp}</span></div>
+<div class="t-module"><span class="t-label">PAYLOAD VAL</span><span class="t-value" style="color: #ffd700">{val_disp}</span></div>
+<div class="t-module"><span class="t-label">EST. YIELD</span><span class="t-value" style="color: {status_color}">{upside_disp}</span></div>
+</div>
+</div>"""
                 st.markdown(html_content, unsafe_allow_html=True)
 
     # Mission History Section (Moon Lander)
@@ -1983,62 +1981,62 @@ No active open limit or bracket orders found on your Coinbase account.
             yield_color = '#00ff66' if '+' in upside_disp else '#ff3366'
 
             bout_html = f"""<div class="arena-card">
-    <div class="hud-top-meta">
-    <span class="hud-round-badge">ROUND {idx + 1}</span>
-    <span class="hud-price-pill">{pid} • {price_disp}</span>
-    </div>
-    <div class="hud-fighters-row">
-    <div class="fighter-tag-left">
-    <span class="tag-name-left">THE BULL</span>
-    <span class="tag-hp-left">{bull_hp}% HP</span>
-    </div>
-    <div class="hud-vs-text">VS</div>
-    <div class="fighter-tag-right">
-    <span class="tag-hp-right">{bear_hp}% HP</span>
-    <span class="tag-name-right">BEAR BOSS [TP {tp_disp}]</span>
-    </div>
-    </div>
-    <div class="hud-lifebars-strip">
-    <div class="lifebar-box">
-    <div class="lifebar-fill-bull" style="width: {bull_hp}%;"></div>
-    </div>
-    <div class="lifebar-box">
-    <div class="lifebar-fill-bear" style="width: {bear_hp}%;"></div>
-    </div>
-    </div>
-    {alert_banner}
-    <div class="stage-arena">
-    <div class="stage-floor"></div>
-    {fireball_html}
-    {shield_html}
-    {clash_vfx}
-    {extra_vfx}
-    <div class="fighter-wrapper-bull {bull_anim} {aura_class}" style="left: {bull_left_pct}%;">
-    {SVG_BULL}
-    </div>
-    <div class="fighter-wrapper-bear {bear_anim} aura-boss">
-    {SVG_BEAR}
-    </div>
-    </div>
-    <div class="telemetry-bar">
-    <div class="stat-box">
-    <span class="stat-lbl">MATCH CLOCK</span>
-    <span class="stat-val" style="color: #00ffcc;">{age_disp}</span>
-    </div>
-    <div class="stat-box">
-    <span class="stat-lbl">MARKET STRIKE</span>
-    <span class="stat-val" style="color: #ffd700;">{price_disp}</span>
-    </div>
-    <div class="stat-box">
-    <span class="stat-lbl">BOUNTY PURSE</span>
-    <span class="stat-val" style="color: #ffffff;">{val_disp}</span>
-    </div>
-    <div class="stat-box">
-    <span class="stat-lbl">EST. YIELD</span>
-    <span class="stat-val" style="color: {yield_color};">{upside_disp}</span>
-    </div>
-    </div>
-    </div>"""
+<div class="hud-top-meta">
+<span class="hud-round-badge">ROUND {idx + 1}</span>
+<span class="hud-price-pill">{pid} • {price_disp}</span>
+</div>
+<div class="hud-fighters-row">
+<div class="fighter-tag-left">
+<span class="tag-name-left">THE BULL</span>
+<span class="tag-hp-left">{bull_hp}% HP</span>
+</div>
+<div class="hud-vs-text">VS</div>
+<div class="fighter-tag-right">
+<span class="tag-hp-right">{bear_hp}% HP</span>
+<span class="tag-name-right">BEAR BOSS [TP {tp_disp}]</span>
+</div>
+</div>
+<div class="hud-lifebars-strip">
+<div class="lifebar-box">
+<div class="lifebar-fill-bull" style="width: {bull_hp}%;"></div>
+</div>
+<div class="lifebar-box">
+<div class="lifebar-fill-bear" style="width: {bear_hp}%;"></div>
+</div>
+</div>
+{alert_banner}
+<div class="stage-arena">
+<div class="stage-floor"></div>
+{fireball_html}
+{shield_html}
+{clash_vfx}
+{extra_vfx}
+<div class="fighter-wrapper-bull {bull_anim} {aura_class}" style="left: {bull_left_pct}%;">
+{SVG_BULL}
+</div>
+<div class="fighter-wrapper-bear {bear_anim} aura-boss">
+{SVG_BEAR}
+</div>
+</div>
+<div class="telemetry-bar">
+<div class="stat-box">
+<span class="stat-lbl">MATCH CLOCK</span>
+<span class="stat-val" style="color: #00ffcc;">{age_disp}</span>
+</div>
+<div class="stat-box">
+<span class="stat-lbl">MARKET STRIKE</span>
+<span class="stat-val" style="color: #ffd700;">{price_disp}</span>
+</div>
+<div class="stat-box">
+<span class="stat-lbl">BOUNTY PURSE</span>
+<span class="stat-val" style="color: #ffffff;">{val_disp}</span>
+</div>
+<div class="stat-box">
+<span class="stat-lbl">EST. YIELD</span>
+<span class="stat-val" style="color: {yield_color};">{upside_disp}</span>
+</div>
+</div>
+</div>"""
             st.markdown(bout_html, unsafe_allow_html=True)
 
     if history:
