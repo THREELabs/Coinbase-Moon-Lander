@@ -372,7 +372,7 @@ def get_open_orders_data(client):
 def get_mission_history(client, limit=10):
     if not client: return []
     try:
-        resp = client.list_orders(order_status=["FILLED"], limit=limit*4)
+        resp = client.list_orders(order_status=["FILLED"], limit=limit*6)
         orders = resp.orders if hasattr(resp, 'orders') else list(resp)
         buy_orders_map = {}
         for o in orders:
@@ -408,14 +408,50 @@ def get_mission_history(client, limit=10):
             sell_proceeds = (size * filled_price) - sell_fees
             fill_time = getattr(o, 'last_fill_time', None)
             
+            sell_time = pd.to_datetime(fill_time) if fill_time else datetime.now()
+            if sell_time.tzinfo is None: sell_time = sell_time.tz_localize('UTC')
+
+            # Match with previous BUY orders
+            matched_buy = None
+            if pid in buy_orders_map and buy_orders_map[pid]:
+                potential_buys = buy_orders_map[pid]
+                # 1. Look for a BUY that occurred before this SELL with matching size (within 2%)
+                for b in potential_buys:
+                    b_time_str = getattr(b, 'last_fill_time', None)
+                    if not b_time_str: continue
+                    b_time = pd.to_datetime(b_time_str)
+                    if b_time.tzinfo is None: b_time = b_time.tz_localize('UTC')
+                    if b_time < sell_time:
+                        b_size = Decimal(getattr(b, 'filled_size', '0'))
+                        if abs(b_size - size) <= (size * Decimal('0.02')):
+                            matched_buy = b
+                            break
+                
+                # 2. If no exact size match, pick the most recent BUY prior to this SELL
+                if not matched_buy:
+                    for b in potential_buys:
+                        b_time_str = getattr(b, 'last_fill_time', None)
+                        if not b_time_str: continue
+                        b_time = pd.to_datetime(b_time_str)
+                        if b_time.tzinfo is None: b_time = b_time.tz_localize('UTC')
+                        if b_time < sell_time:
+                            matched_buy = b
+                            break
+
             profit_str = "N/A"
             net_profit = Decimal('0')
-            if pid in buy_orders_map and buy_orders_map[pid]:
-                b = buy_orders_map[pid][0]
-                b_price = Decimal(getattr(b, 'average_filled_price', '0'))
-                b_size = Decimal(getattr(b, 'filled_size', '0'))
-                b_fees = Decimal(getattr(b, 'total_fees', '0'))
-                cost = (b_size * b_price) + b_fees
+            if matched_buy:
+                b_price = Decimal(getattr(matched_buy, 'average_filled_price', '0'))
+                b_size = Decimal(getattr(matched_buy, 'filled_size', '0'))
+                b_fees = Decimal(getattr(matched_buy, 'total_fees', '0'))
+                
+                # Accurately compute unit cost basis (price paid + fee per unit)
+                if b_size > 0:
+                    unit_cost = b_price + (b_fees / b_size)
+                    cost = size * unit_cost
+                else:
+                    cost = size * b_price
+
                 net_profit = sell_proceeds - cost
                 profit_str = f"{'+' if net_profit >= 0 else ''}${net_profit:,.2f}"
 
@@ -436,7 +472,7 @@ def get_mission_history(client, limit=10):
                 'price': f"${filled_price:,.2f}",
                 'time': time_disp,
                 'raw_time': raw_time,
-                'size': f"${size:.4f}",
+                'size': f"{size:.4f}",
                 'fees': f"${sell_fees:,.2f}",
                 'profit': profit_str,
                 'raw_profit': net_profit,
