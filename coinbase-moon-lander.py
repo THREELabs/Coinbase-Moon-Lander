@@ -69,6 +69,7 @@ auto_refresh = st.sidebar.checkbox("⚡ Auto-refresh (30s)", value=True)
 
 if is_kombat:
     sound_fx_hint = st.sidebar.checkbox("🔊 Retro FX Vibes", value=True)
+    mk_music_enabled = st.sidebar.checkbox("🎵 MK Arcade Theme Music", value=True)
     st.sidebar.markdown("---")
     st.sidebar.markdown("""
 **Combat Rules**:
@@ -1883,6 +1884,22 @@ else:
 <div class="kombat-title">MARKET KOMBAT</div>
 <div class="kombat-sub">⚡ ARCADE ORDER BOOK CLASH ⚡</div>
 </div>""", unsafe_allow_html=True)
+
+    if mk_music_enabled:
+        audio_url = "https://marine-opera-b5zp.here.now/mk_techno_syndrome.mp3"
+        audio_component = f"""<div style="background: rgba(18, 14, 28, 0.85); border: 2px solid #ff0055; border-radius: 8px; padding: 10px 16px; margin: 0 auto 20px auto; max-width: 600px; text-align: center; box-shadow: 0 0 15px rgba(255, 0, 85, 0.3);">
+<div style="font-family: 'Press Start 2P', monospace; font-size: 0.68rem; color: #ffd700; margin-bottom: 8px; letter-spacing: 1px;">
+🎵 MORTAL KOMBAT ARCADE THEME (TECHNO SYNDROME)
+</div>
+<audio controls autoplay loop style="width: 100%; height: 36px; border-radius: 4px; filter: invert(0.9) hue-rotate(180deg);">
+  <source src="{audio_url}" type="audio/mpeg">
+  Your browser does not support the audio element.
+</audio>
+<div style="font-family: 'Teko', sans-serif; font-size: 1rem; color: #8899aa; margin-top: 4px;">
+Press Play to crank the classic theme music during the bout!
+</div>
+</div>"""
+        st.markdown(audio_component, unsafe_allow_html=True)
 
     SVG_BULL_RAW = """
     <svg viewBox="0 0 100 130" fill="none" xmlns="http://www.w3.org/2000/svg">
