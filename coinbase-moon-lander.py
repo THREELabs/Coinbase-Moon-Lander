@@ -171,7 +171,7 @@ def get_market_depth(client, product_id):
     except Exception:
         return None
 
-def filter_spaced_items(items, target_count=8, min_dist=5):
+def filter_spaced_items(items, target_count=6, min_dist=12):
     sorted_items = sorted(items, key=lambda x: x['raw_size'], reverse=True)
     kept = []
     taken_positions = []
@@ -453,13 +453,12 @@ def get_demo_orders():
             'upside': '+$1,040.00',
             'age': '02:45 PM',
             'fireballs': [
-                {'price': '$69,200', 'raw_size': 5.2, 'val_fmt': '$359K', 'pct': 82, 'level': 2},
-                {'price': '$70,100', 'raw_size': 12.8, 'val_fmt': '$897K', 'pct': 94, 'level': 3}
+                {'price': '$69,500', 'raw_size': 5.2, 'val_fmt': '$359K', 'pct': 76, 'level': 2},
+                {'price': '$70,200', 'raw_size': 12.8, 'val_fmt': '$897K', 'pct': 92, 'level': 3}
             ],
             'shields': [
-                {'price': '$67,500', 'raw_size': 8.4, 'val_fmt': '$567K', 'pct': 60, 'level': 2},
-                {'price': '$66,000', 'raw_size': 14.1, 'val_fmt': '$930K', 'pct': 35, 'level': 3},
-                {'price': '$65,200', 'raw_size': 4.0, 'val_fmt': '$260K', 'pct': 18, 'level': 1}
+                {'price': '$67,000', 'raw_size': 8.4, 'val_fmt': '$567K', 'pct': 50, 'level': 2},
+                {'price': '$65,000', 'raw_size': 14.1, 'val_fmt': '$930K', 'pct': 18, 'level': 3}
             ]
         },
         {
@@ -473,13 +472,12 @@ def get_demo_orders():
             'upside': '+$1,118.00',
             'age': '01:15 PM',
             'fireballs': [
-                {'price': '$3,580', 'raw_size': 45.0, 'val_fmt': '$161K', 'pct': 62, 'level': 1},
-                {'price': '$3,650', 'raw_size': 120.0, 'val_fmt': '$438K', 'pct': 75, 'level': 2},
-                {'price': '$3,780', 'raw_size': 310.0, 'val_fmt': '$1.1M', 'pct': 96, 'level': 3}
+                {'price': '$3,620', 'raw_size': 80.0, 'val_fmt': '$290K', 'pct': 68, 'level': 2},
+                {'price': '$3,760', 'raw_size': 250.0, 'val_fmt': '$940K', 'pct': 90, 'level': 3}
             ],
             'shields': [
-                {'price': '$3,450', 'raw_size': 95.0, 'val_fmt': '$327K', 'pct': 42, 'level': 2},
-                {'price': '$3,320', 'raw_size': 210.0, 'val_fmt': '$697K', 'pct': 20, 'level': 3}
+                {'price': '$3,420', 'raw_size': 95.0, 'val_fmt': '$327K', 'pct': 36, 'level': 2},
+                {'price': '$3,280', 'raw_size': 210.0, 'val_fmt': '$697K', 'pct': 12, 'level': 3}
             ]
         },
         {
@@ -493,13 +491,11 @@ def get_demo_orders():
             'upside': '+$804.00',
             'age': '11:30 AM',
             'fireballs': [
-                {'price': '$155', 'raw_size': 850.0, 'val_fmt': '$131K', 'pct': 45, 'level': 2},
-                {'price': '$162', 'raw_size': 1400.0, 'val_fmt': '$226K', 'pct': 64, 'level': 3},
-                {'price': '$170', 'raw_size': 2200.0, 'val_fmt': '$374K', 'pct': 88, 'level': 3}
+                {'price': '$158', 'raw_size': 850.0, 'val_fmt': '$131K', 'pct': 50, 'level': 2},
+                {'price': '$172', 'raw_size': 2200.0, 'val_fmt': '$374K', 'pct': 88, 'level': 3}
             ],
             'shields': [
-                {'price': '$144', 'raw_size': 600.0, 'val_fmt': '$86K', 'pct': 12, 'level': 1},
-                {'price': '$141', 'raw_size': 1800.0, 'val_fmt': '$253K', 'pct': 3, 'level': 3}
+                {'price': '$142', 'raw_size': 1800.0, 'val_fmt': '$253K', 'pct': 8, 'level': 3}
             ]
         }
     ]
@@ -594,45 +590,118 @@ st.markdown("""
     opacity: 0.7;
 }
 
-/* --- Top HUD: Dual Lifebars --- */
-.hud-lifebars {
+/* --- Top HUD: Redesigned Non-Overlapping Layout --- */
+.hud-top-meta {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+}
+.hud-round-badge {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 0.85rem;
+    color: #ffd700;
+    text-shadow: 0 0 8px #ffd700, 2px 2px #000;
+    background: rgba(255, 215, 0, 0.15);
+    border: 1px solid #ffd700;
+    padding: 3px 8px;
+    border-radius: 4px;
+    animation: pulse-vs 2s infinite ease-in-out;
+}
+.hud-price-pill {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 0.85rem;
+    color: #ffffff;
+    background: rgba(0, 0, 0, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    padding: 3px 10px;
+    border-radius: 4px;
+    white-space: nowrap;
+    box-shadow: 0 0 10px rgba(0, 255, 204, 0.2);
+}
+
+.hud-fighters-row {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    gap: 15px;
-    margin-bottom: 12px;
-    position: relative;
-    z-index: 10;
+    gap: 8px;
+    margin-bottom: 6px;
 }
-.fighter-meta {
+.fighter-tag-left {
     display: flex;
-    flex-direction: column;
+    align-items: center;
+    gap: 6px;
     flex: 1;
+    overflow: hidden;
 }
-.fighter-name-left {
+.fighter-tag-right {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    flex: 1;
+    overflow: hidden;
+}
+.tag-name-left {
     font-family: 'Press Start 2P', monospace;
-    font-size: 0.8rem;
+    font-size: 0.72rem;
     color: #00ffcc;
     text-shadow: 0 0 6px #00ffcc;
-    margin-bottom: 6px;
+    white-space: nowrap;
 }
-.fighter-name-right {
+.tag-name-right {
     font-family: 'Press Start 2P', monospace;
-    font-size: 0.8rem;
+    font-size: 0.72rem;
     color: #ff3366;
     text-shadow: 0 0 6px #ff3366;
+    white-space: nowrap;
     text-align: right;
-    margin-bottom: 6px;
 }
-.lifebar-container {
-    width: 100%;
-    height: 22px;
+.tag-hp-left {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 0.7rem;
+    color: #00ff66;
+    background: rgba(0, 255, 102, 0.15);
+    border: 1px solid #00ff66;
+    padding: 2px 5px;
+    border-radius: 3px;
+    white-space: nowrap;
+}
+.tag-hp-right {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 0.7rem;
+    color: #ff3366;
+    background: rgba(255, 51, 102, 0.15);
+    border: 1px solid #ff3366;
+    padding: 2px 5px;
+    border-radius: 3px;
+    white-space: nowrap;
+}
+.hud-vs-text {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 0.85rem;
+    color: #ffd700;
+    text-shadow: 0 0 8px #ffd700;
+    padding: 0 6px;
+    flex-shrink: 0;
+}
+
+.hud-lifebars-strip {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+.lifebar-box {
+    flex: 1;
+    height: 18px;
     background: #111;
     border: 2px solid #fff;
     border-radius: 2px;
     overflow: hidden;
     position: relative;
-    box-shadow: 0 0 8px rgba(255,255,255,0.3);
+    box-shadow: 0 0 8px rgba(255,255,255,0.25);
 }
 .lifebar-fill-bull {
     height: 100%;
@@ -648,36 +717,9 @@ st.markdown("""
     transition: width 0.8s ease-in-out;
 }
 
-/* Center Arcade VS & Price Tag */
-.hud-vs {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-width: 130px;
-}
-.vs-badge {
-    font-family: 'Press Start 2P', monospace;
-    font-size: 1.1rem;
-    color: #ffd700;
-    text-shadow: 0 0 10px #ffd700, 2px 2px #000;
-    margin-bottom: 3px;
-    animation: pulse-vs 1.5s infinite;
-}
-.price-ticker {
-    font-family: 'Press Start 2P', monospace;
-    font-size: 0.85rem;
-    color: #ffffff;
-    background: rgba(0, 0, 0, 0.75);
-    border: 1px solid #ffd700;
-    padding: 3px 8px;
-    border-radius: 4px;
-    white-space: nowrap;
-}
-
 @keyframes pulse-vs {
     0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.1); filter: brightness(1.3); }
+    50% { transform: scale(1.08); filter: brightness(1.25); }
 }
 
 /* --- Climax Banners --- */
@@ -933,7 +975,7 @@ st.markdown("""
 
 .projectile-hadouken {
     position: absolute;
-    top: 55px;
+    top: 18px;
     z-index: 14;
     animation: fireball-fly 1.2s infinite ease-in-out;
     cursor: pointer;
@@ -942,7 +984,7 @@ st.markdown("""
 .projectile-hadouken.lvl-1 { font-size: 22px; filter: drop-shadow(0 0 4px #ff5500); }
 .projectile-hadouken.lvl-2 { font-size: 32px; filter: drop-shadow(0 0 10px #ff3300); }
 .projectile-hadouken.lvl-3 { 
-    font-size: 46px; 
+    font-size: 44px; 
     filter: drop-shadow(0 0 16px #ff0000) drop-shadow(0 0 28px #ff6600); 
     animation: fireball-fly 0.8s infinite ease-in-out;
 }
@@ -956,24 +998,25 @@ st.markdown("""
 
 .support-shield {
     position: absolute;
-    bottom: 55px;
+    bottom: 20px;
     z-index: 10;
     animation: shield-pulse 2s infinite ease-in-out;
     cursor: pointer;
     transition: left 0.4s ease;
 }
 .support-shield.lvl-1 { font-size: 18px; filter: drop-shadow(0 0 5px #00ccff); }
-.support-shield.lvl-2 { font-size: 28px; filter: drop-shadow(0 0 10px #00ffcc); }
-.support-shield.lvl-3 { font-size: 40px; filter: drop-shadow(0 0 18px #00ff88); }
+.support-shield.lvl-2 { font-size: 26px; filter: drop-shadow(0 0 10px #00ffcc); }
+.support-shield.lvl-3 { font-size: 38px; filter: drop-shadow(0 0 18px #00ff88); }
 
 .badge-lbl {
     font-family: 'Press Start 2P', monospace;
     font-size: 7px;
-    padding: 1px 3px;
+    padding: 1px 4px;
     border-radius: 2px;
+    white-space: nowrap;
 }
-.badge-ask { color: #ff9900; background: rgba(0,0,0,0.8); }
-.badge-bid { color: #00ffcc; background: rgba(0,0,0,0.8); }
+.badge-ask { color: #ff9900; background: rgba(0,0,0,0.85); }
+.badge-bid { color: #00ffcc; background: rgba(0,0,0,0.85); }
 
 /* --- Telemetry Stats Grid --- */
 .telemetry-bar {
@@ -995,13 +1038,76 @@ st.markdown("""
     color: #8899aa;
     margin-bottom: 4px;
     display: block;
+    white-space: nowrap;
 }
 .stat-val {
     font-family: 'Teko', sans-serif;
     font-size: 1.4rem;
     color: #ffffff;
     line-height: 1.2;
+    white-space: nowrap;
 }
+
+/* --- Mobile Responsiveness --- */
+@media (max-width: 650px) {
+    .arena-card {
+        padding: 10px 8px !important;
+    }
+    .hud-top-meta {
+        gap: 6px !important;
+        margin-bottom: 6px !important;
+    }
+    .hud-round-badge {
+        font-size: 0.68rem !important;
+        padding: 2px 6px !important;
+    }
+    .hud-price-pill {
+        font-size: 0.68rem !important;
+        padding: 2px 8px !important;
+    }
+    .tag-name-left, .tag-name-right {
+        font-size: 0.58rem !important;
+    }
+    .tag-hp-left, .tag-hp-right {
+        font-size: 0.58rem !important;
+        padding: 1px 4px !important;
+    }
+    .hud-vs-text {
+        font-size: 0.72rem !important;
+        padding: 0 3px !important;
+    }
+    .lifebar-box {
+        height: 14px !important;
+    }
+    .stage-arena {
+        height: 240px !important;
+    }
+    .telemetry-bar {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 6px !important;
+    }
+    .stat-box {
+        padding: 6px 8px !important;
+    }
+    .stat-lbl {
+        font-size: 0.5rem !important;
+    }
+    .stat-val {
+        font-size: 1.25rem !important;
+    }
+    .fighter-wrapper-bull {
+        width: 80px !important;
+        height: 110px !important;
+        bottom: 30px !important;
+    }
+    .fighter-wrapper-bear {
+        width: 88px !important;
+        height: 115px !important;
+        right: 12px !important;
+        bottom: 30px !important;
+    }
+}
+
 
 /* --- Kombat Hall of Fame --- */
 .hall-card {
@@ -1222,22 +1328,27 @@ else:
         yield_color = '#00ff66' if '+' in upside_disp else '#ff3366'
 
         bout_html = f"""<div class="arena-card">
-<div class="hud-lifebars">
-<div class="fighter-meta">
-<div class="fighter-name-left">THE BULL [LONG] • {bull_hp}% HP</div>
-<div class="lifebar-container">
+<div class="hud-top-meta">
+<span class="hud-round-badge">ROUND {idx + 1}</span>
+<span class="hud-price-pill">{pid} • {price_disp}</span>
+</div>
+<div class="hud-fighters-row">
+<div class="fighter-tag-left">
+<span class="tag-name-left">THE BULL</span>
+<span class="tag-hp-left">{bull_hp}% HP</span>
+</div>
+<div class="hud-vs-text">VS</div>
+<div class="fighter-tag-right">
+<span class="tag-hp-right">{bear_hp}% HP</span>
+<span class="tag-name-right">BEAR BOSS [TP {tp_disp}]</span>
+</div>
+</div>
+<div class="hud-lifebars-strip">
+<div class="lifebar-box">
 <div class="lifebar-fill-bull" style="width: {bull_hp}%;"></div>
 </div>
-</div>
-<div class="hud-vs">
-<div class="vs-badge">ROUND {idx + 1}</div>
-<div class="price-ticker">{pid}: {price_disp}</div>
-</div>
-<div class="fighter-meta">
-<div class="fighter-name-right">{bear_hp}% HP • BEAR BOSS [TP: {tp_disp}]</div>
-<div class="lifebar-container">
+<div class="lifebar-box">
 <div class="lifebar-fill-bear" style="width: {bear_hp}%;"></div>
-</div>
 </div>
 </div>
 {alert_banner}
