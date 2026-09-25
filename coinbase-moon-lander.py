@@ -1476,29 +1476,57 @@ else:
 
 /* --- Battle Stage Arena --- */
 .stage-arena {
-    height: 280px;
+    height: 310px;
     position: relative;
-    background: linear-gradient(to bottom, #110d24 0%, #201338 50%, #150a21 70%, #090312 100%);
-    border: 2px solid #33224d;
-    border-radius: 4px;
+    background-color: #0b0914;
+    background-position: center bottom;
+    background-size: cover;
+    background-repeat: no-repeat;
+    border: 2px solid #4a154b;
+    border-radius: 6px;
     margin: 12px 0;
     overflow: hidden;
+    box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.8), 0 0 20px rgba(255, 0, 85, 0.25);
 }
 
-/* 3D Perspective Grid Floor */
+/* Atmospheric Stage Overlay Gradient */
+.stage-arena::before {
+    content: " ";
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.35) 0%, rgba(0, 0, 0, 0.1) 40%, rgba(0, 0, 0, 0.6) 100%);
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* Authentic MK2 Stage Watermark Badge */
+.stage-watermark {
+    position: absolute;
+    top: 8px;
+    right: 12px;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 0.55rem;
+    color: #ffaa00;
+    background: rgba(10, 8, 20, 0.75);
+    border: 1px solid rgba(255, 170, 0, 0.4);
+    border-radius: 3px;
+    padding: 3px 8px;
+    letter-spacing: 1px;
+    z-index: 15;
+    text-transform: uppercase;
+    text-shadow: 0 0 6px #ff5500;
+}
+
+/* 3D Perspective Battle Ground Line */
 .stage-floor {
     position: absolute;
     bottom: 0;
-    left: -20%;
-    width: 140%;
-    height: 85px;
-    background-image: 
-        linear-gradient(rgba(255, 0, 128, 0.4) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255, 0, 128, 0.4) 1px, transparent 1px);
-    background-size: 40px 18px;
-    transform: perspective(150px) rotateX(45deg);
-    transform-origin: bottom center;
-    box-shadow: 0 -10px 25px rgba(255, 0, 128, 0.3);
+    left: 0;
+    width: 100%;
+    height: 38px;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.8) 0%, rgba(20, 10, 30, 0.4) 60%, transparent 100%);
+    border-top: 1px solid rgba(255, 0, 85, 0.35);
+    z-index: 2;
 }
 
 /* Fighters Positioning & Stances */
@@ -1948,6 +1976,16 @@ else:
     </svg>
     """
     SVG_BEAR = "".join([l.strip() for l in SVG_BEAR_RAW.splitlines()])
+    # Official Mortal Kombat 2 Arena Backgrounds
+    MK2_STAGES = [
+        {"name": "THE DEAD POOL", "file": "dead_pool.jpg", "url": "https://trusty-tinsel-4ba2.here.now/dead_pool.jpg"},
+        {"name": "THE LIVING FOREST", "file": "living_forest.jpg", "url": "https://trusty-tinsel-4ba2.here.now/living_forest.jpg"},
+        {"name": "THE PORTAL", "file": "the_portal.jpg", "url": "https://trusty-tinsel-4ba2.here.now/the_portal.jpg"},
+        {"name": "SHAO KAHN'S ARENA", "file": "kahn_arena.jpg", "url": "https://trusty-tinsel-4ba2.here.now/kahn_arena.jpg"},
+        {"name": "THE TOWER", "file": "the_tower.jpg", "url": "https://trusty-tinsel-4ba2.here.now/the_tower.jpg"},
+        {"name": "THE PIT II", "file": "the_pit_2.jpg", "url": "https://trusty-tinsel-4ba2.here.now/the_pit_2.jpg"}
+    ]
+
 
     if not orders:
         empty_html = """<div class="arena-card" style="text-align: center; padding: 40px;">
@@ -1969,6 +2007,10 @@ No active open limit or bracket orders found on your Coinbase account.
             upside_disp = o.get('upside', 'N/A')
             age_disp = o.get('age', 'N/A')
             side = o.get('side', 'BUY')
+            stage_info = MK2_STAGES[idx % len(MK2_STAGES)]
+            stage_name = stage_info["name"]
+            stage_img = stage_info["url"]
+
             bull_hp = max(0, min(100, health))
             bear_hp = max(0, min(100, 100 - health))
             bull_left_pct = int(10 + (bull_hp * 0.55))
@@ -2041,7 +2083,8 @@ No active open limit or bracket orders found on your Coinbase account.
 </div>
 </div>
 {alert_banner}
-<div class="stage-arena">
+<div class="stage-arena" style="background-image: url('{stage_img}');">
+<div class="stage-watermark">ARENA: {stage_name}</div>
 <div class="stage-floor"></div>
 {fireball_html}
 {shield_html}
