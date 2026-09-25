@@ -755,20 +755,163 @@ st.markdown("""
     z-index: 11;
 }
 
-/* Stance bobbing animations */
-@keyframes stance-bull {
-    0% { transform: translateY(0) scaleY(1); }
-    50% { transform: translateY(-4px) scaleY(1.02); }
-    100% { transform: translateY(0) scaleY(1); }
-}
-@keyframes stance-bear {
-    0% { transform: translateY(0) scale(1); }
-    50% { transform: translateY(-3px) scale(1.02); }
-    100% { transform: translateY(0) scale(1); }
+/* --- High-Energy Arcade Fighting Animations --- */
+
+/* 1. Bull Attack Cycles */
+@keyframes bull-combos {
+    0%   { transform: translateX(0) translateY(0) rotate(0deg); }
+    12%  { transform: translateX(20px) translateY(-4px) rotate(-3deg); } /* Quick jab */
+    24%  { transform: translateX(6px) translateY(0) rotate(0deg); }
+    38%  { transform: translateX(32px) translateY(-6px) rotate(-6deg); } /* Right cross */
+    52%  { transform: translateX(10px) translateY(0) rotate(0deg); }
+    68%  { transform: translateX(46px) translateY(-26px) rotate(8deg); } /* Rising Dragon Uppercut! */
+    82%  { transform: translateX(22px) translateY(-8px) rotate(3deg); }
+    100% { transform: translateX(0) translateY(0) rotate(0deg); }
 }
 
-.bull-active { animation: stance-bull 1.5s infinite ease-in-out; }
-.bear-active { animation: stance-bear 2.0s infinite ease-in-out; }
+@keyframes bull-hyper-rush {
+    0%   { transform: translateX(0) translateY(0) scale(1); filter: drop-shadow(0 0 15px #00ffff); }
+    20%  { transform: translateX(36px) translateY(-8px) scale(1.08); filter: drop-shadow(0 0 25px #00ffcc); }
+    40%  { transform: translateX(16px) translateY(-2px) scale(1); }
+    60%  { transform: translateX(50px) translateY(-24px) rotate(6deg) scale(1.12); filter: drop-shadow(0 0 35px #ffffff); }
+    80%  { transform: translateX(26px) translateY(-4px) scale(1.04); }
+    100% { transform: translateX(0) translateY(0) scale(1); filter: drop-shadow(0 0 15px #00ffff); }
+}
+
+@keyframes bull-defend {
+    0%   { transform: translateX(0) rotate(0deg); }
+    30%  { transform: translateX(-16px) rotate(5deg); } /* Knocked back */
+    50%  { transform: translateX(-12px) rotate(3deg); filter: brightness(1.4) drop-shadow(0 0 14px #ff3300); }
+    100% { transform: translateX(0) rotate(0deg); }
+}
+
+/* 2. Bear Boss Attack Cycles */
+@keyframes bear-attacks {
+    0%   { transform: translateX(0) translateY(0) rotate(0deg); }
+    18%  { transform: translateX(-26px) translateY(-4px) rotate(-5deg); } /* Heavy claw swipe */
+    35%  { transform: translateX(-8px) translateY(0) rotate(0deg); }
+    55%  { transform: translateX(-40px) translateY(-12px) rotate(-8deg); } /* Brutal overhead slash */
+    70%  { transform: translateX(-16px) translateY(6px) rotate(2deg); } /* Ground smash */
+    88%  { transform: translateX(-8px) translateY(0) rotate(0deg); }
+    100% { transform: translateX(0) translateY(0) rotate(0deg); }
+}
+
+@keyframes bear-dizzy-wobble {
+    0%   { transform: rotate(0deg) translateY(0); filter: brightness(0.9); }
+    25%  { transform: rotate(-8deg) translateY(5px); }
+    50%  { transform: rotate(8deg) translateY(-3px); }
+    75%  { transform: rotate(-5deg) translateY(4px); }
+    100% { transform: rotate(0deg) translateY(0); filter: brightness(0.9); }
+}
+
+@keyframes bear-rampage-rush {
+    0%   { transform: translateX(0) scale(1); }
+    25%  { transform: translateX(-38px) translateY(-6px) rotate(-8deg) scale(1.08); filter: drop-shadow(0 0 25px #ff0055); }
+    50%  { transform: translateX(-16px) translateY(8px) scale(1.04); }
+    75%  { transform: translateX(-46px) translateY(-14px) rotate(-10deg) scale(1.12); filter: drop-shadow(0 0 30px #ff0000); }
+    100% { transform: translateX(0) scale(1); }
+}
+
+/* 3. Limb Specific Animations (Fists, Horns & Claws) */
+@keyframes punch-fist-r {
+    0%, 100% { transform: translateX(0) scale(1); }
+    38%      { transform: translateX(25px) scale(1.4); }
+    68%      { transform: translateY(-20px) scale(1.5); }
+}
+@keyframes punch-fist-l {
+    0%, 100% { transform: translateX(0) scale(1); }
+    12%      { transform: translateX(20px) scale(1.3); }
+    50%      { transform: translateX(26px) scale(1.4); }
+}
+@keyframes claw-slash-motion {
+    0%, 100% { transform: rotate(0deg); }
+    20%      { transform: rotate(-25deg) translateY(8px) scale(1.3); }
+    60%      { transform: rotate(-35deg) translateY(12px) scale(1.4); }
+}
+@keyframes headband-flutter {
+    0%, 100% { transform: rotate(0deg); }
+    50%      { transform: rotate(-15deg) scaleX(1.15); }
+}
+
+/* Animation class assignments */
+.bull-fighting    { animation: bull-combos 1.8s infinite ease-in-out; }
+.bull-finish-him  { animation: bull-hyper-rush 0.75s infinite ease-in-out; }
+.bull-staggered   { animation: bull-defend 1.4s infinite ease-in-out; }
+
+.bear-fighting    { animation: bear-attacks 2.0s infinite ease-in-out; }
+.bear-dizzy       { animation: bear-dizzy-wobble 1.6s infinite ease-in-out; }
+.bear-raging      { animation: bear-rampage-rush 1.4s infinite ease-in-out; }
+
+.bull-fighting .bull-fist-r, .bull-finish-him .bull-fist-r { animation: punch-fist-r 1.8s infinite ease-in-out; }
+.bull-fighting .bull-fist-l, .bull-finish-him .bull-fist-l { animation: punch-fist-l 1.8s infinite ease-in-out; }
+.bull-headband-flutter { animation: headband-flutter 0.6s infinite alternate ease-in-out; transform-origin: 23px 30px; }
+.bear-slash-l { animation: claw-slash-motion 2.0s infinite ease-in-out; transform-origin: 18px 94px; }
+.bear-slash-r { animation: claw-slash-motion 2.0s infinite ease-in-out 0.4s; transform-origin: 92px 94px; }
+
+/* 4. Clash Bursts, Slashes & Energy Projectiles */
+@keyframes clash-flash {
+    0%   { opacity: 0; transform: scale(0.3) rotate(0deg); }
+    25%  { opacity: 1; transform: scale(1.4) rotate(15deg); }
+    45%  { opacity: 0.9; transform: scale(1.1) rotate(-10deg); }
+    70%  { opacity: 0; transform: scale(0.6); }
+    100% { opacity: 0; transform: scale(0.3); }
+}
+.clash-burst {
+    position: absolute;
+    bottom: 80px;
+    z-index: 15;
+    font-size: 34px;
+    pointer-events: none;
+    animation: clash-flash 1.8s infinite ease-in-out;
+    filter: drop-shadow(0 0 12px #ffff00) drop-shadow(0 0 20px #ff3300);
+}
+
+@keyframes slash-arc {
+    0%   { opacity: 0; transform: scale(0.4) rotate(45deg); }
+    40%  { opacity: 1; transform: scale(1.3) rotate(-20deg); filter: drop-shadow(0 0 15px #ff0055); }
+    65%  { opacity: 0.7; transform: scale(1.0) rotate(-40deg); }
+    100% { opacity: 0; transform: scale(0.6); }
+}
+.slash-arc-fx {
+    position: absolute;
+    bottom: 75px;
+    right: 110px;
+    font-size: 38px;
+    z-index: 13;
+    pointer-events: none;
+    animation: slash-arc 2.0s infinite ease-in-out;
+}
+
+@keyframes dizzy-spin {
+    0%   { transform: rotate(0deg) scale(0.9); }
+    50%  { transform: rotate(180deg) scale(1.15); }
+    100% { transform: rotate(360deg) scale(0.9); }
+}
+.dizzy-stars-halo {
+    position: absolute;
+    top: 15px;
+    right: 35px;
+    font-size: 24px;
+    z-index: 16;
+    animation: dizzy-spin 2.2s infinite linear;
+    filter: drop-shadow(0 0 10px #ffd700);
+}
+
+@keyframes dragon-wave {
+    0%   { left: 25%; opacity: 0; transform: scale(0.6); }
+    20%  { opacity: 1; transform: scale(1.2); }
+    75%  { opacity: 0.9; transform: scale(1.0); }
+    100% { left: 80%; opacity: 0; transform: scale(0.5); }
+}
+.ki-dragon-wave {
+    position: absolute;
+    bottom: 75px;
+    z-index: 14;
+    font-size: 32px;
+    pointer-events: none;
+    animation: dragon-wave 2.8s infinite ease-in-out;
+    filter: drop-shadow(0 0 15px #00ffff);
+}
 
 /* Glowing Auras */
 .aura-strike {
@@ -916,8 +1059,10 @@ SVG_BULL_RAW = """
   
   <!-- Red Fighter Headband (Ryu Style) -->
   <rect x="23" y="30" width="54" height="7" fill="#FF0044" rx="2"/>
-  <path d="M23 34 L12 40 L16 33 Z" fill="#FF0044"/>
-  <path d="M23 35 L10 46 L15 37 Z" fill="#CC0033"/>
+  <g class="bull-headband-flutter">
+    <path d="M23 34 L12 40 L16 33 Z" fill="#FF0044"/>
+    <path d="M23 35 L10 46 L15 37 Z" fill="#CC0033"/>
+  </g>
   
   <!-- Fierce Eyes -->
   <polygon points="34,35 44,38 37,42" fill="#00FFCC"/>
@@ -930,8 +1075,8 @@ SVG_BULL_RAW = """
   <rect x="38" y="93" width="24" height="4" fill="#FFCC00"/>
   
   <!-- Fists with Glowing Blue Wraps -->
-  <circle cx="22" cy="74" r="10" fill="#00FFCC" stroke="#FFFFFF" stroke-width="2"/>
-  <circle cx="76" cy="70" r="11" fill="#00FFCC" stroke="#FFFFFF" stroke-width="2"/>
+  <circle class="bull-fist-l" cx="22" cy="74" r="10" fill="#00FFCC" stroke="#FFFFFF" stroke-width="2"/>
+  <circle class="bull-fist-r" cx="76" cy="70" r="11" fill="#00FFCC" stroke="#FFFFFF" stroke-width="2"/>
   
   <!-- Sturdy Stance Legs -->
   <rect x="34" y="100" width="12" height="24" fill="#1A0D07" rx="3"/>
@@ -974,11 +1119,15 @@ SVG_BEAR_RAW = """
   <path d="M40 78 L65 98" stroke="#FF0033" stroke-width="2" stroke-linecap="round"/>
   
   <!-- Bear Claws (Ready to Slash) -->
-  <circle cx="18" cy="94" r="11" fill="#100C16" stroke="#FF0055" stroke-width="1.5"/>
-  <path d="M10 94 L5 88 M12 99 L7 96 M17 103 L14 102" stroke="#FFD700" stroke-width="2"/>
+  <g class="bear-slash-l">
+    <circle cx="18" cy="94" r="11" fill="#100C16" stroke="#FF0055" stroke-width="1.5"/>
+    <path d="M10 94 L5 88 M12 99 L7 96 M17 103 L14 102" stroke="#FFD700" stroke-width="2"/>
+  </g>
   
-  <circle cx="92" cy="94" r="11" fill="#100C16" stroke="#FF0055" stroke-width="1.5"/>
-  <path d="M100 94 L105 88 M98 99 L103 96 M93 103 L96 102" stroke="#FFD700" stroke-width="2"/>
+  <g class="bear-slash-r">
+    <circle cx="92" cy="94" r="11" fill="#100C16" stroke="#FF0055" stroke-width="1.5"/>
+    <path d="M100 94 L105 88 M98 99 L103 96 M93 103 L96 102" stroke="#FFD700" stroke-width="2"/>
+  </g>
   
   <!-- Legs -->
   <rect x="32" y="112" width="16" height="24" fill="#140F1B" rx="3"/>
@@ -1054,8 +1203,21 @@ else:
         alert_banner = ""
         if is_finish_him:
             alert_banner = '<div class="finish-him-banner">⚡ FINISH HIM! STRIKE TAKE PROFIT! ⚡</div>'
+            bull_anim = "bull-finish-him"
+            bear_anim = "bear-dizzy"
+            extra_vfx = '<div class="dizzy-stars-halo">💫 ⭐ 💫</div><div class="ki-dragon-wave">⚡🐉</div>'
         elif is_staggered:
             alert_banner = '<div class="danger-banner">⚠️ DANGER: BULL STAGGERED NEAR STOP LOSS ⚠️</div>'
+            bull_anim = "bull-staggered"
+            bear_anim = "bear-raging"
+            extra_vfx = '<div class="slash-arc-fx">🩸</div>'
+        else:
+            bull_anim = "bull-fighting"
+            bear_anim = "bear-fighting"
+            extra_vfx = '<div class="slash-arc-fx">⚔️</div>'
+
+        clash_pos = min(76, bull_left_pct + 15)
+        clash_vfx = f'<div class="clash-burst" style="left: {clash_pos}%;">💥</div>'
 
         yield_color = '#00ff66' if '+' in upside_disp else '#ff3366'
 
@@ -1083,10 +1245,12 @@ else:
 <div class="stage-floor"></div>
 {fireball_html}
 {shield_html}
-<div class="fighter-wrapper-bull bull-active {aura_class}" style="left: {bull_left_pct}%;">
+{clash_vfx}
+{extra_vfx}
+<div class="fighter-wrapper-bull {bull_anim} {aura_class}" style="left: {bull_left_pct}%;">
 {SVG_BULL}
 </div>
-<div class="fighter-wrapper-bear bear-active aura-boss">
+<div class="fighter-wrapper-bear {bear_anim} aura-boss">
 {SVG_BEAR}
 </div>
 </div>
