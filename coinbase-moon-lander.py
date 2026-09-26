@@ -763,7 +763,7 @@ if not is_kombat:
 }
 
 /* --- Header --- */
-.mission-h.telemetry-grid {
+.telemetry-grid {
     display: flex;
     justify-content: space-between;
     gap: 10px;
@@ -820,7 +820,7 @@ if not is_kombat:
     border: 1px solid #333;
     margin: 15px 0;
     overflow: visible; /* Changed from hidden to visible */
-    height: 300px; /* Increased to 300px to ensure absolutely no clipping */
+    height: 220px;
     perspective: 1000px;
 }
 .price-tag {
@@ -992,205 +992,209 @@ if not is_kombat:
         </svg>
         """)
 
-        for o in orders:
-            if o.get('health') is not None:
-                pid = o['product_id']
-                health = o['health']
-                price_disp = f"${o['current_price']:,.2f}"
-                tp_disp = o['tp_price']
-                sl_disp = o['sl_price']
+        valid_orders = [o for o in orders if o.get('health') is not None]
+        for row_i in range(0, len(valid_orders), 2):
+            row_items = valid_orders[row_i:row_i + 2]
+            cols = st.columns(2)
+            for col_idx, o in enumerate(row_items):
+                with cols[col_idx]:
+                    pid = o['product_id']
+                    health = o['health']
+                    price_disp = f"${o['current_price']:,.2f}"
+                    tp_disp = o['tp_price']
+                    sl_disp = o['sl_price']
 
-                # --- Generate UFO & Star HTML ---
-                ufo_html = ""
-                star_html = ""
+                    # --- Generate UFO & Star HTML ---
+                    ufo_html = ""
+                    star_html = ""
 
-                # Track placed items to avoid collisions per mission
-                # Format: {'x': int, 'y': int}
-                placed_items = []
+                    # Track placed items to avoid collisions per mission
+                    # Format: {'x': int, 'y': int}
+                    placed_items = []
 
-                def get_game_coords_safe(seed_val, min_x, max_x, placed_list):
-                    rng = random.Random(str(seed_val))
+                    def get_game_coords_safe(seed_val, min_x, max_x, placed_list):
+                        rng = random.Random(str(seed_val))
 
-                    # Try multiple times to find a free spot
-                    best_x, best_y = 0, 0
+                        # Try multiple times to find a free spot
+                        best_x, best_y = 0, 0
 
-                    for attempt in range(20):
-                        # 1. Generate Candidate
-                        if min_x >= max_x: x = min_x
-                        else: x = rng.randint(int(min_x), int(max_x))
+                        for attempt in range(20):
+                            # 1. Generate Candidate
+                            if min_x >= max_x: x = min_x
+                            else: x = rng.randint(int(min_x), int(max_x))
 
-                        y = rng.randint(10, 80)
+                            y = rng.randint(10, 80)
 
-                        # 2. Adjust for Rocket Lane 
-                        if 45 < y < 55:
-                            if y % 2 == 0: y -= 15
-                            else: y += 15
+                            # 2. Adjust for Rocket Lane 
+                            if 45 < y < 55:
+                                if y % 2 == 0: y -= 15
+                                else: y += 15
 
-                        # 3. Collision Check
-                        collision = False
-                        for p in placed_list:
-                            # Simple Euclidean check (approx 5% radius safe zone)
-                            dist = ((p['x'] - x)**2 + (p['y'] - y)**2)**0.5
-                            if dist < 5.0: # 5% overlap distance
-                                collision = True
-                                break
+                            # 3. Collision Check
+                            collision = False
+                            for p in placed_list:
+                                # Simple Euclidean check (approx 5% radius safe zone)
+                                dist = ((p['x'] - x)**2 + (p['y'] - y)**2)**0.5
+                                if dist < 5.0: # 5% overlap distance
+                                    collision = True
+                                    break
 
-                        if not collision:
-                            # Found a good spot!
-                            return x, y
+                            if not collision:
+                                # Found a good spot!
+                                return x, y
 
-                        # Store as fallback if we fail all attempts (better to slightly overlap than not show)
-                        if attempt == 0: best_x, best_y = x, y
+                            # Store as fallback if we fail all attempts (better to slightly overlap than not show)
+                            if attempt == 0: best_x, best_y = x, y
 
-                    # If we exhausted retries, slightly jitter the fallback to avoid perfect stack
-                    return best_x + rng.randint(-2, 2), best_y + rng.randint(-2, 2)
+                        # If we exhausted retries, slightly jitter the fallback to avoid perfect stack
+                        return best_x + rng.randint(-2, 2), best_y + rng.randint(-2, 2)
 
-                # Rocket Position = health
-                rocket_pos = int(health)
+                    # Rocket Position = health
+                    rocket_pos = int(health)
 
-                # UFO Zone: 0 to Rocket-10
-                ufo_max_x = max(5, rocket_pos - 10)
+                    # UFO Zone: 0 to Rocket-10
+                    ufo_max_x = max(5, rocket_pos - 10)
 
-                # Star Zone: Rocket+10 to 100
-                star_min_x = min(95, rocket_pos + 10)
+                    # Star Zone: Rocket+10 to 100
+                    star_min_x = min(95, rocket_pos + 10)
 
-                if 'ufos' in o:
-                    for u in o['ufos']:
-                        x, y = get_game_coords_safe(u['price'], 2, ufo_max_x, placed_items)
-                        placed_items.append({'x': x, 'y': y})
+                    if 'ufos' in o:
+                        for u in o['ufos']:
+                            x, y = get_game_coords_safe(u['price'], 2, ufo_max_x, placed_items)
+                            placed_items.append({'x': x, 'y': y})
 
-                        lvl = u.get('level', 2)
-                        icon = '🛸'
-                        if lvl == 3: icon = '👾' # Mothership
-                        if lvl == 1: icon = '🛸' # Scout (Same icon, smaller via CSS)
+                            lvl = u.get('level', 2)
+                            icon = '🛸'
+                            if lvl == 3: icon = '👾' # Mothership
+                            if lvl == 1: icon = '🛸' # Scout (Same icon, smaller via CSS)
 
-                        ufo_html += f'<div class="ufo level-{lvl}" style="left: {x}%; top: {y}%;" title="Sell Wall: {u["price"]} (Vol: {u["val_fmt"]})" data-price="{u["price"]}">{icon}</div>'
+                            ufo_html += f'<div class="ufo level-{lvl}" style="left: {x}%; top: {y}%;" title="Sell Wall: {u["price"]} (Vol: {u["val_fmt"]})" data-price="{u["price"]}">{icon}</div>'
 
-                if 'stars' in o:
-                    for s in o['stars']:
-                        x, y = get_game_coords_safe(s['price'], star_min_x, 98, placed_items)
-                        placed_items.append({'x': x, 'y': y})
+                    if 'stars' in o:
+                        for s in o['stars']:
+                            x, y = get_game_coords_safe(s['price'], star_min_x, 98, placed_items)
+                            placed_items.append({'x': x, 'y': y})
 
-                        lvl = s.get('level', 2)
-                        icon = '⭐'
-                        if lvl == 3: icon = '🪐' # Planet/Moon
-                        if lvl == 1: icon = '✨' # Small sparkle
+                            lvl = s.get('level', 2)
+                            icon = '⭐'
+                            if lvl == 3: icon = '🪐' # Planet/Moon
+                            if lvl == 1: icon = '✨' # Small sparkle
 
-                        star_html += f'<div class="star-support level-{lvl}" style="left: {x}%; top: {y}%;" title="Buy Support: {s["price"]} (Vol: {s["val_fmt"]})" data-price="{s["price"]}">{icon}</div>'
-                val_disp = o.get('mission_value', 'N/A')
-                upside_disp = o.get('upside', 'N/A')
-                age_disp = o.get('age', 'N/A')
-                side = o.get('side', 'BUY')
+                            star_html += f'<div class="star-support level-{lvl}" style="left: {x}%; top: {y}%;" title="Buy Support: {s["price"]} (Vol: {s["val_fmt"]})" data-price="{s["price"]}">{icon}</div>'
+                    val_disp = o.get('mission_value', 'N/A')
+                    upside_disp = o.get('upside', 'N/A')
+                    age_disp = o.get('age', 'N/A')
+                    side = o.get('side', 'BUY')
 
-                # Logic
-                # BUY = "Staging for Liftoff" (Orange/Yellow), Vertical Rocket on Launchpad
-                # SELL = 
-                #   - UNKNOWN TREND -> "Hover Mode" (Vertical, Bobbing)
-                #   - UP TREND -> "In Flight" (Right)
-                #   - DOWN TREND -> "Retreating" (Left, Red)
+                    # Logic
+                    # BUY = "Staging for Liftoff" (Orange/Yellow), Vertical Rocket on Launchpad
+                    # SELL = 
+                    #   - UNKNOWN TREND -> "Hover Mode" (Vertical, Bobbing)
+                    #   - UP TREND -> "In Flight" (Right)
+                    #   - DOWN TREND -> "Retreating" (Left, Red)
 
-                staging_class = ""
-                retreat_class = ""
-                hover_class = ""
+                    staging_class = ""
+                    retreat_class = ""
+                    hover_class = ""
 
-                if side == 'BUY':
-                     is_retreating = False 
-                     status_color = '#ffaa00' # Orange for "Liftoff Prep"
-                     status_text = 'STAGING'
-                     staging_class = "staging"
+                    if side == 'BUY':
+                         is_retreating = False 
+                         status_color = '#ffaa00' # Orange for "Liftoff Prep"
+                         status_text = 'STAGING'
+                         staging_class = "staging"
 
-                     # Simplified SVG - No patterns/defs to avoid rendering bugs
-                     svg_ship_staging = textwrap.dedent("""
-                     <svg viewBox="0 0 60 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <!-- Launch Tower Structure (Left Side) -->
-                        <!-- Main Truss -->
-                        <rect x="2" y="20" width="12" height="80" stroke="#666" stroke-width="2"/>
-                        <!-- Cross Bracing (Manual lines instead of pattern) -->
-                        <path d="M2 20 L14 30 M2 30 L14 40 M2 40 L14 50 M2 50 L14 60 M2 60 L14 70 M2 70 L14 80 M2 80 L14 90 M2 90 L14 100" stroke="#444" stroke-width="1"/>
+                         # Simplified SVG - No patterns/defs to avoid rendering bugs
+                         svg_ship_staging = textwrap.dedent("""
+                         <svg viewBox="0 0 60 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <!-- Launch Tower Structure (Left Side) -->
+                            <!-- Main Truss -->
+                            <rect x="2" y="20" width="12" height="80" stroke="#666" stroke-width="2"/>
+                            <!-- Cross Bracing (Manual lines instead of pattern) -->
+                            <path d="M2 20 L14 30 M2 30 L14 40 M2 40 L14 50 M2 50 L14 60 M2 60 L14 70 M2 70 L14 80 M2 80 L14 90 M2 90 L14 100" stroke="#444" stroke-width="1"/>
 
-                        <!-- Arms -->
-                        <line x1="14" y1="35" x2="28" y2="35" stroke="#888" stroke-width="3"/> <!-- Upper Arm -->
-                        <line x1="14" y1="75" x2="24" y2="75" stroke="#888" stroke-width="3"/> <!-- Lower Arm -->
+                            <!-- Arms -->
+                            <line x1="14" y1="35" x2="28" y2="35" stroke="#888" stroke-width="3"/> <!-- Upper Arm -->
+                            <line x1="14" y1="75" x2="24" y2="75" stroke="#888" stroke-width="3"/> <!-- Lower Arm -->
 
-                        <!-- Rocket Body (Vertical) -->
-                        <path d="M30 20 L38 35 V85 H22 V35 L30 20 Z" fill="#E0E0E0" stroke="#FFF" stroke-width="2"/>
+                            <!-- Rocket Body (Vertical) -->
+                            <path d="M30 20 L38 35 V85 H22 V35 L30 20 Z" fill="#E0E0E0" stroke="#FFF" stroke-width="2"/>
 
-                        <!-- Nose Cone Detail -->
-                        <path d="M30 20 L38 35 H22 L30 20 Z" fill="#FFD700" stroke="#FFD700" stroke-width="1"/>
+                            <!-- Nose Cone Detail -->
+                            <path d="M30 20 L38 35 H22 L30 20 Z" fill="#FFD700" stroke="#FFD700" stroke-width="1"/>
 
-                        <!-- Fins (Bigger/Brighter) -->
-                        <path d="M22 75 L14 88 H22 V75 Z" fill="#FF4500" stroke="#FFF" stroke-width="1"/>
-                        <path d="M38 75 L46 88 H38 V75 Z" fill="#FF4500" stroke="#FFF" stroke-width="1"/>
+                            <!-- Fins (Bigger/Brighter) -->
+                            <path d="M22 75 L14 88 H22 V75 Z" fill="#FF4500" stroke="#FFF" stroke-width="1"/>
+                            <path d="M38 75 L46 88 H38 V75 Z" fill="#FF4500" stroke="#FFF" stroke-width="1"/>
 
-                        <!-- Engine Nozzle -->
-                        <path d="M26 85 L24 92 H36 L34 85" fill="#333"/>
+                            <!-- Engine Nozzle -->
+                            <path d="M26 85 L24 92 H36 L34 85" fill="#333"/>
 
-                        <!-- Launch Pad Base -->
-                        <rect x="10" y="92" width="40" height="8" fill="#555" stroke="#333"/>
+                            <!-- Launch Pad Base -->
+                            <rect x="10" y="92" width="40" height="8" fill="#555" stroke="#333"/>
 
-                        <!-- Venting Smoke (Simple opacity pulse) -->
-                         <circle cx="38" cy="94" r="4" fill="white" fill-opacity="0.8">
-                            <animate attributeName="r" values="4;6;4" dur="2s" repeatCount="indefinite"/>
-                            <animate attributeName="fill-opacity" values="0.8;0.2;0.8" dur="2s" repeatCount="indefinite"/>
-                        </circle>
-                     </svg>
-                     """)
-                     # Force strip all indentation to prevent Markdown code block triggers
-                     ship_icon = "".join([line.strip() for line in svg_ship_staging.split('\n')])
-                     plume_style = "" # Handled inside SVG or disabled
+                            <!-- Venting Smoke (Simple opacity pulse) -->
+                             <circle cx="38" cy="94" r="4" fill="white" fill-opacity="0.8">
+                                <animate attributeName="r" values="4;6;4" dur="2s" repeatCount="indefinite"/>
+                                <animate attributeName="fill-opacity" values="0.8;0.2;0.8" dur="2s" repeatCount="indefinite"/>
+                            </circle>
+                         </svg>
+                         """)
+                         # Force strip all indentation to prevent Markdown code block triggers
+                         ship_icon = "".join([line.strip() for line in svg_ship_staging.split('\n')])
+                         plume_style = "" # Handled inside SVG or disabled
 
-                else:
-                     # SELL (In Flight)
+                    else:
+                         # SELL (In Flight)
 
-                     # Initialize price history if needed
-                     if 'price_history' not in st.session_state:
-                         st.session_state.price_history = {}
+                         # Initialize price history if needed
+                         if 'price_history' not in st.session_state:
+                             st.session_state.price_history = {}
 
-                     prev_data = st.session_state.price_history.get(pid, {})
-                     prev_price = prev_data.get('price', 0)
-                     prev_trend = prev_data.get('trend', 'NEUTRAL') # Default to NEUTRAL/HOVER
+                         prev_data = st.session_state.price_history.get(pid, {})
+                         prev_price = prev_data.get('price', 0)
+                         prev_trend = prev_data.get('trend', 'NEUTRAL') # Default to NEUTRAL/HOVER
 
-                     current_price = o['current_price']
+                         current_price = o['current_price']
 
-                     # Trend Logic
-                     if prev_price == 0:
-                         # FIRST LOAD -> Force Right (Profit Direction) as per user request
-                         trend_direction = 'RIGHT'
-                     elif current_price > prev_price:
-                         trend_direction = 'RIGHT'
-                     elif current_price < prev_price:
-                         trend_direction = 'LEFT'
-                     else:
-                         trend_direction = prev_trend # Maintain state
+                         # Trend Logic
+                         if prev_price == 0:
+                             # FIRST LOAD -> Force Right (Profit Direction) as per user request
+                             trend_direction = 'RIGHT'
+                         elif current_price > prev_price:
+                             trend_direction = 'RIGHT'
+                         elif current_price < prev_price:
+                             trend_direction = 'LEFT'
+                         else:
+                             trend_direction = prev_trend # Maintain state
 
-                     # Update history
-                     st.session_state.price_history[pid] = {
-                         'price': current_price,
-                         'trend': trend_direction
-                     }
+                         # Update history
+                         st.session_state.price_history[pid] = {
+                             'price': current_price,
+                             'trend': trend_direction
+                         }
 
-                     # Apply Visuals based on Trend
-                     is_retreating = (trend_direction == 'LEFT')
+                         # Apply Visuals based on Trend
+                         is_retreating = (trend_direction == 'LEFT')
 
-                     status_color = '#00f3ff' if health > 50 else '#ffaa00' if health > 20 else '#ff4b4b'
-                     status_text = 'STABLE' if health > 50 else 'UNSTABLE' if health > 20 else 'CRITICAL'
-                     ship_icon = svg_ship_alert if is_retreating else svg_ship_normal
-                     retreat_class = "retreat" if is_retreating else ""
-                     plume_style = "" # Default engines
+                         status_color = '#00f3ff' if health > 50 else '#ffaa00' if health > 20 else '#ff4b4b'
+                         status_text = 'STABLE' if health > 50 else 'UNSTABLE' if health > 20 else 'CRITICAL'
+                         ship_icon = svg_ship_alert if is_retreating else svg_ship_normal
+                         retreat_class = "retreat" if is_retreating else ""
+                         plume_style = "" # Default engines
 
-                     # Create robust single-line SVG string
-                     ship_icon = "".join([line.strip() for line in ship_icon.split('\n')])
+                         # Create robust single-line SVG string
+                         ship_icon = "".join([line.strip() for line in ship_icon.split('\n')])
 
-                # Visual Clamp: Use CSS calc to keep rocket fully inside container
-                # The rocket's max dimension is 100px (when horizontal).
-                # We need the CENTER to be at least 50px from edges.
-                # 0% health -> Center at 50px
-                # 100% health -> Center at 100% - 50px
-                # Formula: 50px + (100% - 100px) * (health / 100)
+                    # Visual Clamp: Use CSS calc to keep rocket fully inside container
+                    # The rocket's max dimension is 100px (when horizontal).
+                    # We need the CENTER to be at least 50px from edges.
+                    # 0% health -> Center at 50px
+                    # 100% health -> Center at 100% - 50px
+                    # Formula: 50px + (100% - 100px) * (health / 100)
 
-                # Dedent the HTML content to prevent it from being rendered as a code block
-                # We use distinct strings concatenated to avoid indentation issues entirely
-                html_content = f"""<div class="hud-container">
+                    # Dedent the HTML content to prevent it from being rendered as a code block
+                    # We use distinct strings concatenated to avoid indentation issues entirely
+                    html_content = f"""<div class="hud-container">
 <div class="mission-header">
 <span class="mission-title">{pid} <span style="font-size: 0.6em; opacity: 0.7;">[{side}]</span></span>
 <span class="mission-status" style="color: {status_color}; border-color: {status_color}; text-shadow: 0 0 5px {status_color};">
@@ -1216,7 +1220,7 @@ STATUS: {status_text}
 <div class="t-module"><span class="t-label">EST. YIELD</span><span class="t-value" style="color: {status_color}">{upside_disp}</span></div>
 </div>
 </div>"""
-                st.markdown(html_content, unsafe_allow_html=True)
+                    st.markdown(html_content, unsafe_allow_html=True)
 
     # Mission History Section (Moon Lander)
     if history:
@@ -2014,68 +2018,73 @@ No active open limit or bracket orders found on your Coinbase account.
 </div>"""
         st.markdown(empty_html, unsafe_allow_html=True)
     else:
-        for idx, o in enumerate(orders):
-            pid = o['product_id']
-            health = int(o.get('health', 50))
-            price_disp = f"${o['current_price']:,.2f}"
-            tp_disp = o.get('tp_price', 'N/A')
-            sl_disp = o.get('sl_price', 'N/A')
-            val_disp = o.get('mission_value', 'N/A')
-            upside_disp = o.get('upside', 'N/A')
-            age_disp = o.get('age', 'N/A')
-            side = o.get('side', 'BUY')
-            stage_info = MK2_STAGES[idx % len(MK2_STAGES)]
-            stage_name = stage_info["name"]
-            stage_img = stage_info["url"]
+        for row_i in range(0, len(orders), 2):
+            row_items = orders[row_i:row_i + 2]
+            cols = st.columns(2)
+            for col_i, o in enumerate(row_items):
+                idx = row_i + col_i
+                with cols[col_i]:
+                    pid = o['product_id']
+                    health = int(o.get('health', 50))
+                    price_disp = f"${o['current_price']:,.2f}"
+                    tp_disp = o.get('tp_price', 'N/A')
+                    sl_disp = o.get('sl_price', 'N/A')
+                    val_disp = o.get('mission_value', 'N/A')
+                    upside_disp = o.get('upside', 'N/A')
+                    age_disp = o.get('age', 'N/A')
+                    side = o.get('side', 'BUY')
+                    stage_info = MK2_STAGES[idx % len(MK2_STAGES)]
+                    stage_name = stage_info["name"]
+                    stage_img = stage_info["url"]
 
-            bull_hp = max(0, min(100, health))
-            bear_hp = max(0, min(100, 100 - health))
-            bull_left_pct = int(10 + (bull_hp * 0.55))
+                    bull_hp = max(0, min(100, health))
+                    bear_hp = max(0, min(100, 100 - health))
+                    bull_left_pct = int(10 + (bull_hp * 0.55))
 
-            is_finish_him = bull_hp >= 85
-            is_staggered = bull_hp <= 20
-            aura_class = "aura-strike" if bull_hp > 50 else ("aura-danger" if is_staggered else "")
+                    is_finish_him = bull_hp >= 85
+                    is_staggered = bull_hp <= 20
+                    aura_class = "aura-strike" if bull_hp > 50 else ("aura-danger" if is_staggered else "")
 
-            fireball_html = ""
-            for fb in o.get('fireballs', []):
-                lvl = fb.get('level', 2)
-                pos = fb.get('pct', 50)
-                icon = "☄️" if lvl == 1 else ("🔥" if lvl == 2 else "💥")
-                fb_price = fb['price']
-                fb_val = fb['val_fmt']
-                fireball_html += f'<div class="projectile-hadouken lvl-{lvl}" style="left: {pos}%;" title="Sell Wall: {fb_price} (Vol: {fb_val})">{icon}<div class="badge-lbl badge-ask">{fb_price}</div></div>'
+                    fireball_html = ""
+                    for fb in o.get('fireballs', []):
+                        lvl = fb.get('level', 2)
+                        pos = fb.get('pct', 50)
+                        icon = "☄️" if lvl == 1 else ("🔥" if lvl == 2 else "💥")
+                        fb_price = fb['price']
+                        fb_val = fb['val_fmt']
+                        fireball_html += f'<div class="projectile-hadouken lvl-{lvl}" style="left: {pos}%;" title="Sell Wall: {fb_price} (Vol: {fb_val})">{icon}<div class="badge-lbl badge-ask">{fb_price}</div></div>'
 
-            shield_html = ""
-            for sh in o.get('shields', []):
-                lvl = sh.get('level', 2)
-                pos = sh.get('pct', 30)
-                icon = "✨" if lvl == 1 else ("🛡️" if lvl == 2 else "⚡")
-                sh_price = sh['price']
-                sh_val = sh['val_fmt']
-                shield_html += f'<div class="support-shield lvl-{lvl}" style="left: {pos}%;" title="Buy Support: {sh_price} (Vol: {sh_val})">{icon}<div class="badge-lbl badge-bid">{sh_price}</div></div>'
+                    shield_html = ""
+                    for sh in o.get('shields', []):
+                        lvl = sh.get('level', 2)
+                        pos = sh.get('pct', 30)
+                        icon = "✨" if lvl == 1 else ("🛡️" if lvl == 2 else "⚡")
+                        sh_price = sh['price']
+                        sh_val = sh['val_fmt']
+                        shield_html += f'<div class="support-shield lvl-{lvl}" style="left: {pos}%;" title="Buy Support: {sh_price} (Vol: {sh_val})">{icon}<div class="badge-lbl badge-bid">{sh_price}</div></div>'
 
-            alert_banner = ""
-            if is_finish_him:
-                alert_banner = '<div class="finish-him-banner">⚡ FINISH HIM! STRIKE TAKE PROFIT! ⚡</div>'
-                bull_anim = "bull-finish-him"
-                bear_anim = "bear-dizzy"
-                extra_vfx = '<div class="dizzy-stars-halo">💫 ⭐ 💫</div><div class="ki-dragon-wave">⚡🐉</div>'
-            elif is_staggered:
-                alert_banner = '<div class="danger-banner">⚠️ DANGER: BULL STAGGERED NEAR STOP LOSS ⚠️</div>'
-                bull_anim = "bull-staggered"
-                bear_anim = "bear-raging"
-                extra_vfx = '<div class="slash-arc-fx">🩸</div>'
-            else:
-                bull_anim = "bull-fighting"
-                bear_anim = "bear-fighting"
-                extra_vfx = '<div class="slash-arc-fx">⚔️</div>'
+                    alert_banner = ""
+                    if is_finish_him:
+                        alert_banner = '<div class="finish-him-banner">⚡ FINISH HIM! STRIKE TAKE PROFIT! ⚡</div>'
+                        bull_anim = "bull-finish-him"
+                        bear_anim = "bear-dizzy"
+                        extra_vfx = '<div class="dizzy-stars-halo">💫 ⭐ 💫</div><div class="ki-dragon-wave">⚡🐉</div>'
+                    elif is_staggered:
+                        alert_banner = '<div class="danger-banner">⚠️ DANGER: BULL STAGGERED NEAR STOP LOSS ⚠️</div>'
+                        bull_anim = "bull-staggered"
+                        bear_anim = "bear-raging"
+                        extra_vfx = '<div class="slash-arc-fx">🩸</div>'
+                    else:
+                        bull_anim = "bull-fighting"
+                        bear_anim = "bear-fighting"
+                        extra_vfx = '<div class="slash-arc-fx">⚔️</div>'
 
-            clash_pos = min(76, bull_left_pct + 15)
-            clash_vfx = f'<div class="clash-burst" style="left: {clash_pos}%;">💥</div>'
+                    clash_pos = min(76, bull_left_pct + 15)
+                    clash_vfx = f'<div class="clash-burst" style="left: {clash_pos}%;">💥</div>'
 
-            yield_color = '#00ff66' if '+' in upside_disp else '#ff3366'
+                    yield_color = '#00ff66' if '+' in upside_disp else '#ff3366'
 
-            bout_html = f"""<div class="arena-card">
+                    bout_html = f"""<div class="arena-card">
 <div class="hud-top-meta">
 <span class="hud-round-badge">ROUND {idx + 1}</span>
 <span class="hud-price-pill">{pid} • {price_disp}</span>
@@ -2133,7 +2142,7 @@ No active open limit or bracket orders found on your Coinbase account.
 </div>
 </div>
 </div>"""
-            st.markdown(bout_html, unsafe_allow_html=True)
+                    st.markdown(bout_html, unsafe_allow_html=True)
 
     if history:
         st.markdown("### 🏆 KOMBAT HALL OF FAME (RECENT BOUTS)")
